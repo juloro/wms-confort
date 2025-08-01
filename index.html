@@ -157,6 +157,7 @@
         .map-block-yellow { background-color: #ffc107; color: #000; }
         .map-block-red { background-color: #dc3545; }
         .span-1 { grid-column: span 1; }
+        .span-2 { grid-column: span 2; }
         .span-9 { grid-column: span 9; }
 
     </style>
@@ -622,14 +623,15 @@
                 // Fila 40
                 { type: 'block', label: 'A40/44', prefix: 'A', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B40/44', prefix: 'B', start: 40, count: 5 }, { type: 'block', label: 'C40/44', prefix: 'C', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D40/44', prefix: 'D', start: 40, count: 5 }, { type: 'block', label: 'E40/44', prefix: 'E', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F40/44', prefix: 'F', start: 40, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 // Fila 30
-                { type: 'block', label: 'A30/34', prefix: 'A', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B30/34', prefix: 'B', start: 30, count: 5 }, { type: 'block', label: 'C30/34', prefix: 'C', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D30/34', prefix: 'D', start: 30, count: 5 }, { type: 'block', label: 'E30/34', prefix: 'E', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F30/34', prefix: 'F', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G30/34', prefix: 'G', start: 30, count: 5 },
+                { type: 'block', label: 'A30/34', prefix: 'A', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B30/34', prefix: 'B', start: 30, count: 5 }, { type: 'block', label: 'C30/34', prefix: 'C', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D30/34', prefix: 'D', start: 30, count: 5 }, { type: 'block', label: 'E30/34', prefix: 'E', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F30/34', prefix: 'F', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G30/32', prefix: 'G', start: 30, count: 3 },
                 // Fila 20
                 { type: 'block', label: 'A20/24', prefix: 'A', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B20/24', prefix: 'B', start: 20, count: 5 }, { type: 'block', label: 'C20/24', prefix: 'C', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D20/24', prefix: 'D', start: 20, count: 5 }, { type: 'block', label: 'E20/24', prefix: 'E', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F20/24', prefix: 'F', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G20/24', prefix: 'G', start: 20, count: 5 },
                 // Fila 10
                 { type: 'block', label: 'A10/14', prefix: 'A', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B10/14', prefix: 'B', start: 10, count: 5 }, { type: 'block', label: 'C10/14', prefix: 'C', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D10/14', prefix: 'D', start: 10, count: 5 }, { type: 'block', label: 'E10/14', prefix: 'E', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F10/14', prefix: 'F', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G10/14', prefix: 'G', start: 10, count: 5 },
                 // Fila Jaula y Piso
                 { type: 'block', label: 'JAULA00', prefix: 'JAULA', start: 0, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'Z00 PISO', prefix: 'Z', start: 0, count: 1, span: 9 },
-                { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 },
+                // Fila ZLUCAS
+                { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'ZLUCAS', span: 2, count: 1 },
             ];
 
             const mapHTML = mapLayout.map(item => {
@@ -642,7 +644,7 @@
 
                 // Manejar bloques de una sola ubicación como JAULA y Z00
                 if (item.count === 1) {
-                    const locationId = item.label === 'Z00 PISO' ? 'Z00' : `${item.prefix}${String(item.start).padStart(2, '0')}`;
+                    const locationId = item.label === 'Z00 PISO' ? 'Z00' : (item.label === 'ZLUCAS' ? 'ZLUCAS' : `${item.prefix}${String(item.start).padStart(2, '0')}`);
                     const controlDate = lastControlDates.get(locationId);
                     let colorClass = 'map-block-red';
                     if (controlDate) {
