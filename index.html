@@ -236,7 +236,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v2.24 (Versión Estable) - 31/07/2025</span>
+                    <span class="text-muted">v3.00 (Versión Estable) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -607,8 +607,8 @@
                 // Headers
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
                 
-                // Fila 120 (con SERVICES)
-                { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICES', count: 1 },
+                // Fila 120 (con SERVICE)
+                { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 // Fila 110 (con OUTLET)
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 // Fila 100
@@ -648,7 +648,7 @@
                 // Manejar bloques de una sola ubicación
                 if (item.count === 1) {
                     let locationId;
-                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICES', 'OUTLET'];
+                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICE', 'OUTLET'];
                     if (specialLabels.includes(item.label)) {
                         locationId = item.label === 'Z00 PISO' ? 'Z00' : item.label;
                     } else {
@@ -2363,3 +2363,4 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
