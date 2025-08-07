@@ -251,7 +251,6 @@
         
         // --- 1. CONFIGURACIÓN Y CONSTANTES ---
         const CONFIG = {
-            API_KEY: 'AIzaSyAN9E2mW3zFx99yK0mxwlLwFc5_C0h3aoY',
             CLIENT_ID: '87731666752-orcgmhd0e19r205s9d97c4ak3rkvhb41.apps.googleusercontent.com',
             SPREADSHEET_ID: '17kxD1P_xRlQEZ6LP7YTJ6GTjpfPEuxVYnU0u3PxahYY',
             SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
@@ -315,7 +314,10 @@
         };
 
         async function initializeGapiClient() {
-            await gapi.client.init({ apiKey: CONFIG.API_KEY, discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'] });
+            // FIX: Removed API Key from initialization. OAuth token will be used for authentication.
+            await gapi.client.init({
+                discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+            });
             gapiInited = true;
             maybeEnableAuthButton();
         }
@@ -600,14 +602,15 @@
         // --- MODIFICADO: RENDERIZADO DE UBICACIONES ---
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
-            // Layout modificado para incluir la columna G y nuevos pasillos.
+            // Layout modificado para incluir las nuevas ubicaciones.
             const mapLayout = [
                 // Headers
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
-                // Fila 120
-                { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 110
-                { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                
+                // Fila 120 (con SERVICES)
+                { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICES', count: 1 },
+                // Fila 110 (con OUTLET)
+                { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 // Fila 100
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 // Fila 90
@@ -642,9 +645,16 @@
                 // item.type === 'block'
                 const today = new Date();
 
-                // Manejar bloques de una sola ubicación como JAULA y Z00
+                // Manejar bloques de una sola ubicación
                 if (item.count === 1) {
-                    const locationId = item.label === 'Z00 PISO' ? 'Z00' : (item.label === 'ZLUCAS' ? 'ZLUCAS' : `${item.prefix}${String(item.start).padStart(2, '0')}`);
+                    let locationId;
+                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICES', 'OUTLET'];
+                    if (specialLabels.includes(item.label)) {
+                        locationId = item.label === 'Z00 PISO' ? 'Z00' : item.label;
+                    } else {
+                        locationId = `${item.prefix}${String(item.start).padStart(2, '0')}`;
+                    }
+                    
                     const controlDate = lastControlDates.get(locationId);
                     let colorClass = 'map-block-red';
                     if (controlDate) {
@@ -658,7 +668,7 @@
                     </div>`;
                 }
 
-                // Manejar módulos con múltiples ubicaciones (5 niveles)
+                // Manejar módulos con múltiples ubicaciones
                 let locationsHTML = '';
                 for (let i = 0; i < item.count; i++) {
                     const locationId = `${item.prefix}${String(item.start + i)}`;
