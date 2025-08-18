@@ -507,7 +507,13 @@
         }
         function renderProductsView() {
             const container = DOM.views.productos;
-            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4"><h2>Productos</h2><button class="btn btn-primary" data-action="show-new-product-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Producto</button></div><div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div><div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
+            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Productos</h2>
+                <div class="btn-group">
+                    <button class="btn btn-success" data-action="download-products-csv"><span class="material-icons align-middle me-1">file_download</span> Descargar CSV</button>
+                    <button class="btn btn-primary" data-action="show-new-product-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Producto</button>
+                </div>
+            </div><div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div><div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
                 <th data-action="sort-products" data-sort-by="id">ID Producto<span class="sort-icon"></span></th>
                 <th data-action="sort-products" data-sort-by="name">Nombre<span class="sort-icon"></span></th>
                 <th>EAN</th>
@@ -1912,6 +1918,7 @@
                 'save-product-control': saveProductControl,
                 'select-product-for-product-control': () => populateProductControlModal(data.productId, data.productName),
                 'show-location-group-details': () => showLocationGroupDetailsModal(data.locations, data.label),
+                'download-products-csv': downloadProductsCSV,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2320,6 +2327,53 @@
             addFooters(doc);
             doc.save(fileName);
         }
+        
+        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR CSV DE PRODUCTOS ---
+        function downloadProductsCSV() {
+            const tableBody = document.getElementById('products-table');
+            if (!tableBody) {
+                return alert('Error: No se encontró la tabla de productos.');
+            }
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+
+            if (visibleRows.length === 0) {
+                return alert('No hay productos en la vista actual para descargar.');
+            }
+
+            const csvHeader = ['ID Producto', 'Nombre', 'Stock'];
+            const csvRows = [csvHeader];
+
+            visibleRows.forEach(row => {
+                const id = row.cells[0]?.textContent.trim() || '';
+                const name = row.cells[1]?.textContent.trim() || '';
+                const stock = row.cells[3]?.textContent.trim() || '0';
+                csvRows.push([id, name, stock]);
+            });
+
+            const escapeCSVField = (field) => {
+                const str = String(field);
+                // Si el campo contiene una coma, un salto de línea o comillas dobles, lo encerramos entre comillas.
+                if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+                    // Escapamos las comillas dobles existentes duplicándolas.
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
+
+            const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(row => row.map(escapeCSVField).join(',')).join('\n');
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "productos_filtrados.csv");
+            document.body.appendChild(link);
+
+            link.click();
+            document.body.removeChild(link);
+        }
+        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR CSV DE PRODUCTOS ---
+        
         // --- FIN: BLOQUE DE CÓDIGO RESTAURADO ---
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
@@ -2363,4 +2417,3 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
