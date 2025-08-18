@@ -937,6 +937,10 @@
                         </div>
                          <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-primary" data-action="download-location-detail-pdf" data-label="${sanitizeHTML(label)}" data-locations="${sanitizeHTML(locationsStr)}">
+                                <span class="material-icons align-middle" style="font-size: 1.1rem;">picture_as_pdf</span>
+                                Descargar PDF
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1919,6 +1923,7 @@
                 'select-product-for-product-control': () => populateProductControlModal(data.productId, data.productName),
                 'show-location-group-details': () => showLocationGroupDetailsModal(data.locations, data.label),
                 'download-products-csv': downloadProductsCSV,
+                'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2328,7 +2333,6 @@
             doc.save(fileName);
         }
         
-        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR CSV DE PRODUCTOS ---
         function downloadProductsCSV() {
             const tableBody = document.getElementById('products-table');
             if (!tableBody) {
@@ -2353,9 +2357,7 @@
 
             const escapeCSVField = (field) => {
                 const str = String(field);
-                // Si el campo contiene una coma, un salto de línea o comillas dobles, lo encerramos entre comillas.
                 if (str.includes(',') || str.includes('\n') || str.includes('"')) {
-                    // Escapamos las comillas dobles existentes duplicándolas.
                     return `"${str.replace(/"/g, '""')}"`;
                 }
                 return str;
@@ -2372,8 +2374,82 @@
             link.click();
             document.body.removeChild(link);
         }
-        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR CSV DE PRODUCTOS ---
-        
+
+        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR PDF DE UBICACIÓN ---
+        function downloadLocationDetailPDF(label, locationsStr) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // 1. Recalcular datos para asegurar consistencia
+            const locations = locationsStr.split(',');
+            const stockInGroup = new Map();
+            for (const loc of locations) {
+                fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
+                    if (locationsMap.has(loc)) {
+                        const qty = locationsMap.get(loc);
+                        if (qty > 0) {
+                            const product = fullData.productos.find(p => p[0] === productId);
+                            if (product) {
+                                const currentStock = stockInGroup.get(productId) || { name: product[1], qty: 0 };
+                                currentStock.qty += qty;
+                                stockInGroup.set(productId, currentStock);
+                            }
+                        }
+                    }
+                });
+            }
+
+            const tableRows = [...stockInGroup.entries()]
+                .sort((a, b) => a[1].name.localeCompare(b[1].name))
+                .map(([id, data]) => [id, data.name, data.qty]);
+
+            // 2. Información del último control
+            const datesInGroup = locations.map(loc => lastControlDates.get(loc)).filter(Boolean);
+            let lastControlText = 'No se han registrado controles para esta ubicación o grupo.';
+            if (datesInGroup.length > 0) {
+                const mostRecentDate = new Date(Math.max(...datesInGroup));
+                const diffDays = Math.ceil(Math.abs(new Date() - mostRecentDate) / (1000 * 60 * 60 * 24));
+                lastControlText = `Último control: ${mostRecentDate.toLocaleDateString('es-AR')} (hace ${diffDays} días)`;
+            }
+
+            // 3. Añadir pie de página (reutilizable)
+            const addFooters = doc => {
+                const pageCount = doc.internal.getNumberOfPages();
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(8);
+                for (var i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.text('Página ' + String(i) + ' de ' + String(pageCount), doc.internal.pageSize.width / 2, 287, { align: 'center' });
+                }
+            }
+
+            // 4. Construir el PDF
+            const now = new Date();
+            const formattedDate = now.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '');
+            const fileName = `Detalle_Ubicacion_${label.replace(/[\/\\?%*:|"<>]/g, '-')}.pdf`;
+
+            // Título y cabecera
+            doc.setFontSize(20);
+            doc.text(`Detalle de Ubicación: ${label}`, 14, 15);
+            doc.setFontSize(10);
+            doc.text(formattedDate, 14, 22);
+            doc.setFontSize(12);
+            doc.text(lastControlText, 14, 28);
+
+            // Tabla de productos
+            doc.autoTable({
+                head: [['ID Producto', 'Nombre', 'Cantidad']],
+                body: tableRows.length > 0 ? tableRows : [['No hay stock en esta ubicación.', '', '']],
+                startY: 35,
+                headStyles: { fillColor: [66, 73, 80] },
+                theme: 'striped'
+            });
+
+            addFooters(doc);
+            doc.save(fileName);
+        }
+        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR PDF DE UBICACIÓN ---
+
         // --- FIN: BLOQUE DE CÓDIGO RESTAURADO ---
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
