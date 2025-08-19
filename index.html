@@ -56,7 +56,7 @@
             background-color: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(5px);
         }
-        #dashboard h2 {
+        #dashboard h2, #dashboard h4 {
             color: white;
             text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
         }
@@ -160,6 +160,20 @@
         .span-2 { grid-column: span 2; }
         .span-9 { grid-column: span 9; }
 
+        .stat-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+        }
+        .stat-card-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .stat-card-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
     </style>
 </head>
 <body>
@@ -236,7 +250,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v3.00 (Versión Estable) - 31/07/2025</span>
+                    <span class="text-muted">v3.2 (Versión Estable) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -452,6 +466,34 @@
             const pickingPendientes = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING).length;
             const empaquetadoPendiente = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
             const listasParaDespacho = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PACKAGED).length;
+
+            // --- INICIO: Lógica para semáforo de controles ---
+            let controlStatus = { green: 0, yellow: 0, red: 0 };
+            const today = new Date();
+            const totalLocations = validLocations.size;
+
+            validLocations.forEach(location => {
+                const controlDate = lastControlDates.get(location);
+                if (controlDate) {
+                    const diffTime = Math.abs(today - controlDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 30) {
+                        controlStatus.green++;
+                    } else if (diffDays <= 59) {
+                        controlStatus.yellow++;
+                    } else {
+                        controlStatus.red++;
+                    }
+                } else {
+                    controlStatus.red++;
+                }
+            });
+
+            const greenPercent = totalLocations > 0 ? (controlStatus.green / totalLocations * 100).toFixed(1) : 0;
+            const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
+            const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
+            // --- FIN: Lógica para semáforo de controles ---
+
             container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
                 <div class="row">
                     <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
@@ -462,7 +504,28 @@
                     <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-warning">pending_actions</span><h5 class="card-title mt-2">Picking Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${pickingPendientes}</p></div></div></div>
                     <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-dark">inventory_2</span><h5 class="card-title mt-2">Empaquetado Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${empaquetadoPendiente}</p></div></div></div>
                     <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-info">local_shipping</span><h5 class="card-title mt-2">Listas para Despacho</h5><p class="card-text fw-bold dashboard-card-value">${listasParaDespacho}</p></div></div></div>
-                </div>`;
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.5);">
+                <h4 class="mb-3">Estado de Controles de Ubicación</h4>
+                <div class="card">
+                    <div class="card-body">
+                         <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <p class="mb-1"><strong>Reciente (&lt;30d):</strong> ${controlStatus.green} pos. (${greenPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-success" role="progressbar" style="width: ${greenPercent}%" aria-valuenow="${greenPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                             <div class="col-md-4">
+                                <p class="mb-1"><strong>Advertencia (31-59d):</strong> ${controlStatus.yellow} pos. (${yellowPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-warning" role="progressbar" style="width: ${yellowPercent}%" aria-valuenow="${yellowPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                             <div class="col-md-4">
+                                <p class="mb-1"><strong>Vencido (&ge;60d):</strong> ${controlStatus.red} pos. (${redPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-danger" role="progressbar" style="width: ${redPercent}%" aria-valuenow="${redPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
         }
         function renderTasksView() {
             const container = DOM.views.tareas;
@@ -507,13 +570,55 @@
         }
         function renderProductsView() {
             const container = DOM.views.productos;
-            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+            
+            // --- INICIO: Lógica para stats de productos ---
+            const totalProducts = (fullData.productos || []).length;
+            let productsWithoutStock = 0;
+            let lowStockProducts = 0;
+            (fullData.productos || []).forEach(p => {
+                const stock = fullData.stockTotal.get(String(p[0] || '')) || 0;
+                if (stock === 0) {
+                    productsWithoutStock++;
+                }
+                if (stock > 0 && stock <= 2) {
+                    lowStockProducts++;
+                }
+            });
+            const lowStockPercentage = totalProducts > 0 ? (lowStockProducts / totalProducts * 100).toFixed(1) : 0;
+            // --- FIN: Lógica para stats de productos ---
+
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Productos</h2>
                 <div class="btn-group">
                     <button class="btn btn-success" data-action="download-products-csv"><span class="material-icons align-middle me-1">file_download</span> Descargar CSV</button>
                     <button class="btn btn-primary" data-action="show-new-product-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Producto</button>
                 </div>
-            </div><div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div><div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">TOTAL DE PRODUCTOS</p>
+                        <p class="stat-card-value text-primary mb-0">${totalProducts}</p>
+                    </div></div>
+                </div>
+                 <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">PRODUCTOS SIN STOCK</p>
+                        <p class="stat-card-value text-danger mb-0">${productsWithoutStock}</p>
+                    </div></div>
+                </div>
+                 <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">PRODUCTOS CON BAJO STOCK (%)</p>
+                        <p class="stat-card-value text-warning mb-0">${lowStockPercentage}%</p>
+                    </div></div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
                 <th data-action="sort-products" data-sort-by="id">ID Producto<span class="sort-icon"></span></th>
                 <th data-action="sort-products" data-sort-by="name">Nombre<span class="sort-icon"></span></th>
                 <th>EAN</th>
@@ -574,11 +679,56 @@
         }
         function renderOrdersView() {
             const container = DOM.views.ordenes;
+
+            // --- INICIO: Lógica para stats de órdenes ---
+            const totalOrders = (fullData.ordenes || []).length;
+            const ordersByChannel = (fullData.ordenes || []).reduce((acc, order) => {
+                const channel = order[5] || 'SIN CANAL';
+                acc[channel] = (acc[channel] || 0) + 1;
+                return acc;
+            }, {});
+            const channelEntries = Object.entries(ordersByChannel).sort((a,b) => b[1] - a[1]);
+            const channelCardsHTML = channelEntries.map(([channel, count]) => `
+                <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1 text-uppercase">${sanitizeHTML(channel)}</p>
+                        <p class="stat-card-value text-secondary mb-0">${count}</p>
+                    </div></div>
+                </div>
+            `).join('');
+            // --- FIN: Lógica para stats de órdenes ---
+
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
-            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4"><h2 class="mb-0">Órdenes</h2>${incidentButtonHTML}</div><div class="row g-3 mb-4"><div class="col-md-6"><input type="text" id="order-search" class="form-control" placeholder="Buscar por ID Venta, Cliente, Producto, ID Producto o Nro de Orden..."></div><div class="col-md-3"><input type="date" id="order-date-filter" class="form-control"></div><div class="col-md-3"><select id="order-channel-filter" class="form-select"><option value="">Todos los Canales</option>${channelOptions}</select></div></div><div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th></tr></thead><tbody id="orders-table">${(fullData.ordenes || []).map((row, index) => getOrderRowHTML(row, index)).join('')}</tbody></table></div>`;
+
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Órdenes</h2>
+                ${incidentButtonHTML}
+            </div>
+
+            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+                 <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">TOTAL DE ÓRDENES</p>
+                        <p class="stat-card-value text-primary mb-0">${totalOrders}</p>
+                    </div></div>
+                </div>
+                ${channelCardsHTML}
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6"><input type="text" id="order-search" class="form-control" placeholder="Buscar por ID Venta, Cliente, Producto, ID Producto o Nro de Orden..."></div>
+                <div class="col-md-3"><input type="date" id="order-date-filter" class="form-control"></div>
+                <div class="col-md-3"><select id="order-channel-filter" class="form-select"><option value="">Todos los Canales</option>${channelOptions}</select></div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
+                    <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th></tr>
+                </thead><tbody id="orders-table">${(fullData.ordenes || []).map((row, index) => getOrderRowHTML(row, index)).join('')}</tbody></table>
+            </div>`;
         }
         function renderControlsView() {
             const container = DOM.views.controles;
@@ -605,41 +755,26 @@
             document.getElementById('controls-table').innerHTML = (fullData.controles || []).slice().reverse().map(getControlRowHTML).join('');
         }
 
-        // --- MODIFICADO: RENDERIZADO DE UBICACIONES ---
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
-            // Layout modificado para incluir las nuevas ubicaciones.
             const mapLayout = [
                 // Headers
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
                 
-                // Fila 120 (con SERVICE)
+                // Filas
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
-                // Fila 110 (con OUTLET)
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
-                // Fila 100
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 90
                 { type: 'block', label: 'A90/94', prefix: 'A', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B90/94', prefix: 'B', start: 90, count: 5 }, { type: 'block', label: 'C90/94', prefix: 'C', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D90/94', prefix: 'D', start: 90, count: 5 }, { type: 'block', label: 'E90/94', prefix: 'E', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F90/94', prefix: 'F', start: 90, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 80
                 { type: 'block', label: 'A80/84', prefix: 'A', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B80/84', prefix: 'B', start: 80, count: 5 }, { type: 'block', label: 'C80/84', prefix: 'C', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D80/84', prefix: 'D', start: 80, count: 5 }, { type: 'block', label: 'E80/84', prefix: 'E', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F80/84', prefix: 'F', start: 80, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 70
                 { type: 'block', label: 'A70/74', prefix: 'A', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B70/74', prefix: 'B', start: 70, count: 5 }, { type: 'block', label: 'C70/74', prefix: 'C', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D70/74', prefix: 'D', start: 70, count: 5 }, { type: 'block', label: 'E70/74', prefix: 'E', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F70/74', prefix: 'F', start: 70, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 60
                 { type: 'block', label: 'A60/64', prefix: 'A', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B60/64', prefix: 'B', start: 60, count: 5 }, { type: 'block', label: 'C60/64', prefix: 'C', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D60/64', prefix: 'D', start: 60, count: 5 }, { type: 'block', label: 'E60/64', prefix: 'E', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F60/64', prefix: 'F', start: 60, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 50
                 { type: 'block', label: 'A50/54', prefix: 'A', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B50/54', prefix: 'B', start: 50, count: 5 }, { type: 'block', label: 'C50/54', prefix: 'C', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D50/54', prefix: 'D', start: 50, count: 5 }, { type: 'block', label: 'E50/54', prefix: 'E', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F50/54', prefix: 'F', start: 50, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 40
                 { type: 'block', label: 'A40/44', prefix: 'A', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B40/44', prefix: 'B', start: 40, count: 5 }, { type: 'block', label: 'C40/44', prefix: 'C', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D40/44', prefix: 'D', start: 40, count: 5 }, { type: 'block', label: 'E40/44', prefix: 'E', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F40/44', prefix: 'F', start: 40, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                // Fila 30
                 { type: 'block', label: 'A30/34', prefix: 'A', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B30/34', prefix: 'B', start: 30, count: 5 }, { type: 'block', label: 'C30/34', prefix: 'C', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D30/34', prefix: 'D', start: 30, count: 5 }, { type: 'block', label: 'E30/34', prefix: 'E', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F30/34', prefix: 'F', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G30/32', prefix: 'G', start: 30, count: 3 },
-                // Fila 20
                 { type: 'block', label: 'A20/24', prefix: 'A', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B20/24', prefix: 'B', start: 20, count: 5 }, { type: 'block', label: 'C20/24', prefix: 'C', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D20/24', prefix: 'D', start: 20, count: 5 }, { type: 'block', label: 'E20/24', prefix: 'E', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F20/24', prefix: 'F', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G20/24', prefix: 'G', start: 20, count: 5 },
-                // Fila 10
                 { type: 'block', label: 'A10/14', prefix: 'A', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B10/14', prefix: 'B', start: 10, count: 5 }, { type: 'block', label: 'C10/14', prefix: 'C', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D10/14', prefix: 'D', start: 10, count: 5 }, { type: 'block', label: 'E10/14', prefix: 'E', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F10/14', prefix: 'F', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G10/14', prefix: 'G', start: 10, count: 5 },
-                // Fila Jaula y Piso
                 { type: 'block', label: 'JAULA00', prefix: 'JAULA', start: 0, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'Z00 PISO', prefix: 'Z', start: 0, count: 1, span: 9 },
-                // Fila ZLUCAS
                 { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'ZLUCAS', span: 2, count: 1 },
             ];
 
@@ -648,10 +783,8 @@
                     return `<div class="map-${item.type} ${item.span ? `span-${item.span}`: ''}">${item.label || ''}</div>`;
                 }
                 
-                // item.type === 'block'
                 const today = new Date();
 
-                // Manejar bloques de una sola ubicación
                 if (item.count === 1) {
                     let locationId;
                     const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICE', 'OUTLET'];
@@ -674,24 +807,21 @@
                     </div>`;
                 }
 
-                // Manejar módulos con múltiples ubicaciones
                 let locationsHTML = '';
                 for (let i = 0; i < item.count; i++) {
                     const locationId = `${item.prefix}${String(item.start + i)}`;
                     const controlDate = lastControlDates.get(locationId);
-                    let colorClass = 'map-block-red'; // Rojo por defecto
+                    let colorClass = 'map-block-red';
                     if (controlDate) {
                         const diffTime = Math.abs(today - controlDate);
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         if (diffDays <= 30) colorClass = 'map-block-green';
                         else if (diffDays <= 59) colorClass = 'map-block-yellow';
                     }
-                    // Cada celda es ahora un botón que muestra detalles de esa ubicación específica
                     locationsHTML += `<div class="map-location-cell ${colorClass}" data-action="show-location-group-details" data-locations="${locationId}" data-label="${locationId}">
                         ${locationId}
                     </div>`;
                 }
-                // Retornar un contenedor de módulo que agrupa las celdas individuales
                 return `<div class="map-module ${item.span ? `span-${item.span}` : ''}">${locationsHTML}</div>`;
 
             }).join('');
@@ -707,7 +837,6 @@
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
         }
-        // --- FIN DE LA MODIFICACIÓN ---
 
         // --- 6. FUNCIONES DE AYUDA Y UTILIDADES ---
 
@@ -883,7 +1012,6 @@
             </tr>`;
         }
 
-        // --- INICIO: BLOQUE DE CÓDIGO RESTAURADO ---
         function showLocationGroupDetailsModal(locationsStr, label) {
             const locations = locationsStr.split(',');
             const stockInGroup = new Map();
@@ -2449,7 +2577,6 @@
             doc.save(fileName);
         }
 
-        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR PDF DE REMITO ---
         function downloadRemitoDetailPDF(remitoId) {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -2493,15 +2620,13 @@
                 head: [['ID Producto', 'Nombre', 'Cantidad']],
                 body: tableRows,
                 startY: 65,
-                headStyles: { fillColor: [66, 73, 80] }, // Color gris oscuro para la cabecera
+                headStyles: { fillColor: [66, 73, 80] }, 
                 theme: 'striped'
             });
 
             addFooters(doc);
             doc.save(fileName);
         }
-        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR PDF DE REMITO ---
-        // --- FIN: BLOQUE DE CÓDIGO RESTAURADO ---
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
         
