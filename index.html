@@ -1418,7 +1418,13 @@
                     <th>Nombre</th>
                     <th class="text-end">Cantidad</th>
                 </tr></thead><tbody>${productRows}</tbody></table>
-            </div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>`;
+            </div><div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" data-action="download-remito-detail-pdf" data-remito-id="${sanitizeHTML(remitoId)}">
+                    <span class="material-icons align-middle me-1" style="font-size: 1.1rem;">picture_as_pdf</span>
+                    Descargar PDF
+                </button>
+            </div></div></div></div>`;
             createAndShowModal(CONSTANTS.IDS.REMITO_DETAIL_MODAL, modalHTML);
         }
         
@@ -1924,6 +1930,7 @@
                 'show-location-group-details': () => showLocationGroupDetailsModal(data.locations, data.label),
                 'download-products-csv': downloadProductsCSV,
                 'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
+                'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2375,12 +2382,10 @@
             document.body.removeChild(link);
         }
 
-        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR PDF DE UBICACIÓN ---
         function downloadLocationDetailPDF(label, locationsStr) {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
-            // 1. Recalcular datos para asegurar consistencia
             const locations = locationsStr.split(',');
             const stockInGroup = new Map();
             for (const loc of locations) {
@@ -2403,7 +2408,6 @@
                 .sort((a, b) => a[1].name.localeCompare(b[1].name))
                 .map(([id, data]) => [id, data.name, data.qty]);
 
-            // 2. Información del último control
             const datesInGroup = locations.map(loc => lastControlDates.get(loc)).filter(Boolean);
             let lastControlText = 'No se han registrado controles para esta ubicación o grupo.';
             if (datesInGroup.length > 0) {
@@ -2412,7 +2416,6 @@
                 lastControlText = `Último control: ${mostRecentDate.toLocaleDateString('es-AR')} (hace ${diffDays} días)`;
             }
 
-            // 3. Añadir pie de página (reutilizable)
             const addFooters = doc => {
                 const pageCount = doc.internal.getNumberOfPages();
                 doc.setFont('helvetica', 'italic');
@@ -2423,12 +2426,10 @@
                 }
             }
 
-            // 4. Construir el PDF
             const now = new Date();
             const formattedDate = now.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }).replace(',', '');
             const fileName = `Detalle_Ubicacion_${label.replace(/[\/\\?%*:|"<>]/g, '-')}.pdf`;
 
-            // Título y cabecera
             doc.setFontSize(20);
             doc.text(`Detalle de Ubicación: ${label}`, 14, 15);
             doc.setFontSize(10);
@@ -2436,7 +2437,6 @@
             doc.setFontSize(12);
             doc.text(lastControlText, 14, 28);
 
-            // Tabla de productos
             doc.autoTable({
                 head: [['ID Producto', 'Nombre', 'Cantidad']],
                 body: tableRows.length > 0 ? tableRows : [['No hay stock en esta ubicación.', '', '']],
@@ -2448,8 +2448,59 @@
             addFooters(doc);
             doc.save(fileName);
         }
-        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR PDF DE UBICACIÓN ---
 
+        // --- INICIO: NUEVA FUNCIÓN PARA DESCARGAR PDF DE REMITO ---
+        function downloadRemitoDetailPDF(remitoId) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const data = processedRemitos.get(remitoId);
+            if (!data) {
+                return alert('Error: No se encontraron los datos del remito para generar el PDF.');
+            }
+
+            const tableRows = data.productos.map(p => [p.id, p.nombre, p.cantidad]);
+
+            const addFooters = doc => {
+                const pageCount = doc.internal.getNumberOfPages();
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(8);
+                for (var i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.text('Página ' + String(i) + ' de ' + String(pageCount), doc.internal.pageSize.width / 2, 287, { align: 'center' });
+                }
+            };
+            
+            const fileName = `Remito_${remitoId.replace(/[\/\\?%*:|"<>]/g, '-')}.pdf`;
+
+            // Título
+            doc.setFontSize(20);
+            doc.text('Detalle de Remito', 14, 22);
+
+            // Información del Remito
+            doc.setFontSize(12);
+            doc.text(`Número: ${remitoId}`, 14, 32);
+            
+            doc.setFontSize(10);
+            doc.text(`Fecha: ${data.fecha}`, 14, 38);
+            doc.text(`Tipo: ${data.tipo}`, 14, 43);
+            doc.text(`Motivo: ${data.motivo}`, 14, 48);
+            doc.text(`Origen/Destino: ${data.origen}`, 14, 53);
+            doc.text(`Unidades Totales: ${data.totalUnidades}`, 14, 58);
+
+            // Tabla de productos
+            doc.autoTable({
+                head: [['ID Producto', 'Nombre', 'Cantidad']],
+                body: tableRows,
+                startY: 65,
+                headStyles: { fillColor: [66, 73, 80] }, // Color gris oscuro para la cabecera
+                theme: 'striped'
+            });
+
+            addFooters(doc);
+            doc.save(fileName);
+        }
+        // --- FIN: NUEVA FUNCIÓN PARA DESCARGAR PDF DE REMITO ---
         // --- FIN: BLOQUE DE CÓDIGO RESTAURADO ---
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
