@@ -247,7 +247,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v4.0 (Etiquetas) - 31/07/2025</span>
+                    <span class="text-muted">v4.1 (Estable) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -284,7 +284,23 @@
                 EGRESO: ['VENTA', 'MAYORISTA', 'REPOSICION']
             },
             CONTROL_TYPE: { TASK_INCIDENCE: 'INCIDENCIA TAREA', PRODUCT_COUNT: 'CONTROL PRODUCTO', LOCATION_COUNT: 'CONTROL UBICACIÓN' },
-            IDS: { NEW_PRODUCT_MODAL: 'newProductModal', EDIT_PRODUCT_MODAL: 'editProductModal', STOCK_LOCATION_MODAL: 'stockLocationModal', NEW_MOVEMENT_MODAL: 'newMovementModal', MOVE_STOCK_MODAL: 'moveStockModal', REMITO_DETAIL_MODAL: 'remitoDetailModal', PICKING_MODAL: 'pickingModal', INCIDENT_MODAL: 'incidentManagementModal', ADD_ORDER_MODAL: 'addOrderModal', CHANGE_PRODUCT_MODAL: 'changeProductModal', LOCATION_CONTROL_MODAL: 'locationControlModal', PRODUCT_CONTROL_MODAL: 'productControlModal', LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal' },
+            IDS: { 
+                NEW_PRODUCT_MODAL: 'newProductModal', 
+                EDIT_PRODUCT_MODAL: 'editProductModal', 
+                STOCK_LOCATION_MODAL: 'stockLocationModal', 
+                NEW_MOVEMENT_MODAL: 'newMovementModal', 
+                MOVE_STOCK_MODAL: 'moveStockModal', 
+                REMITO_DETAIL_MODAL: 'remitoDetailModal', 
+                PICKING_MODAL: 'pickingModal', 
+                INCIDENT_MODAL: 'incidentManagementModal', 
+                ADD_ORDER_MODAL: 'addOrderModal', 
+                CHANGE_PRODUCT_MODAL: 'changeProductModal', 
+                LOCATION_CONTROL_MODAL: 'locationControlModal', 
+                PRODUCT_CONTROL_MODAL: 'productControlModal', 
+                LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal',
+                // --- NUEVA MODIFICACIÓN --- Se añade el ID para el nuevo modal de orden manual
+                MANUAL_ORDER_MODAL: 'manualOrderModal'
+            },
             DEFAULT_LOCATION: 'SIN_UBICACION',
             DEFAULT_INGRESS_LOCATION: 'Z00',
             CONTROL_ID_PREFIX: 'CTRL-',
@@ -691,12 +707,18 @@
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
+            
+            // --- NUEVA MODIFICACIÓN --- Se añade un div para agrupar los botones de acción
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
-
+            const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
+            
             container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">Órdenes</h2>
-                ${incidentButtonHTML}
+                <div class="btn-group">
+                    ${incidentButtonHTML}
+                    ${newOrderButtonHTML}
+                </div>
             </div>
 
             <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
@@ -900,7 +922,7 @@
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
         function getOrderRowHTML(row, index) {
-            const estado = sanitizeHTML(row[6]);
+            const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
             let rowClass = '';
             if (estadoUpper === CONSTANTS.STATUS.INCIDENCE) rowClass = 'table-danger';
@@ -1557,6 +1579,126 @@
             createAndShowModal(CONSTANTS.IDS.REMITO_DETAIL_MODAL, modalHTML);
         }
         
+        // --- NUEVA MODIFICACIÓN --- Inicio del bloque de funciones para la nueva orden manual
+        /**
+         * Muestra el modal para ingresar una nueva orden manualmente.
+         */
+        function showManualOrderModal() {
+            const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.MANUAL_ORDER_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Registrar Nueva Orden Manual</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="manualOrderIdVenta" class="form-label">ID Venta</label>
+                                    <input type="text" class="form-control" id="manualOrderIdVenta" placeholder="Ej: ML123456789">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="manualOrderCliente" class="form-label">Nombre del Cliente</label>
+                                    <input type="text" class="form-control" id="manualOrderCliente" placeholder="Nombre y Apellido">
+                                </div>
+                                <div class="col-md-12 autocomplete-container">
+                                    <label for="manualOrderProductName" class="form-label">Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductName" placeholder="Buscar por nombre o ID..." data-action="search-products-for-order">
+                                    <div class="autocomplete-results"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="manualOrderProductId" class="form-label">ID Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductId" readonly>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="manualOrderCantidad" class="form-label">Cantidad</label>
+                                    <input type="number" class="form-control" id="manualOrderCantidad" min="1" value="1">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="manualOrderCanal" class="form-label">Canal</label>
+                                    <input type="text" class="form-control" id="manualOrderCanal" placeholder="Ej: MOSTRADOR">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="manualOrderNroOrden" class="form-label">Nro Orden (Opcional)</label>
+                                    <input type="text" class="form-control" id="manualOrderNroOrden">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-manual-order">Guardar Orden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.MANUAL_ORDER_MODAL, modalHTML);
+        }
+
+        /**
+         * Guarda la nueva orden manual en la hoja de cálculo.
+         */
+        async function saveManualOrder() {
+            const idVenta = document.getElementById('manualOrderIdVenta').value.trim();
+            const cliente = document.getElementById('manualOrderCliente').value.trim();
+            const productName = document.getElementById('manualOrderProductName').value.trim();
+            const productId = document.getElementById('manualOrderProductId').value.trim();
+            const cantidad = document.getElementById('manualOrderCantidad').value;
+            const canal = document.getElementById('manualOrderCanal').value.trim();
+            const nroOrden = document.getElementById('manualOrderNroOrden').value.trim();
+
+            if (!idVenta || !cliente || !productId || !canal) {
+                return alert('Por favor, complete todos los campos obligatorios: ID Venta, Cliente, Producto y Canal.');
+            }
+            const cantidadNum = parseInt(cantidad, 10);
+            if (isNaN(cantidadNum) || cantidadNum <= 0) {
+                return alert('La cantidad debe ser un número mayor a cero.');
+            }
+            
+            const timestamp = getTimestamp();
+            const newOrderRow = [
+                timestamp,      // A: Fecha
+                idVenta,        // B: ID Venta
+                productName,    // C: Producto
+                productId,      // D: ID Producto
+                cantidadNum,    // E: Cantidad
+                canal,          // F: Canal
+                '',             // G: Estado (SIN ESTADO por defecto)
+                cliente,        // H: Cliente
+                nroOrden        // I: Nro de Orden
+            ];
+            
+            activeModals[CONSTANTS.IDS.MANUAL_ORDER_MODAL]?.hide();
+            showLoading(true, 'Guardando nueva orden...');
+
+            try {
+                await appendToSheet(CONSTANTS.RANGES.ordenes, [newOrderRow]);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        /**
+         * Rellena los campos del producto seleccionado en el modal de nueva orden.
+         */
+        function selectProductForManualOrder(productId, productName) {
+            const nameInput = document.getElementById('manualOrderProductName');
+            const idInput = document.getElementById('manualOrderProductId');
+            if (!nameInput || !idInput) return;
+
+            nameInput.value = productName;
+            idInput.value = productId;
+
+            const resultsContainer = nameInput.closest('.autocomplete-container').querySelector('.autocomplete-results');
+            resultsContainer.innerHTML = '';
+            resultsContainer.style.display = 'none';
+        }
+        // --- FIN del bloque de funciones ---
+
+
         function showLocationControlModal() {
             const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
             const modalHTML = `
@@ -2061,6 +2203,10 @@
                 'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
                 'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
                 'download-order-label': () => downloadOrderLabel(data),
+                // --- NUEVA MODIFICACIÓN --- Se añaden las acciones para la nueva orden manual
+                'show-manual-order-modal': showManualOrderModal,
+                'save-manual-order': saveManualOrder,
+                'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2082,6 +2228,9 @@
                 searchProductsForMovement(target, 'select-product-for-product-control');
             } else if (action === 'search-replacement-product') {
                 searchReplacementProduct(target, target.dataset.orderIndex);
+            // --- NUEVA MODIFICACIÓN --- Se añade la lógica para el buscador de productos en la nueva orden
+            } else if (action === 'search-products-for-order') {
+                searchProductsForMovement(target, 'select-product-for-manual-order');
             }
 
              if(target.classList.contains('picking-qty-input')) {
@@ -2137,6 +2286,7 @@
                     if (selectAction === 'select-product-for-control') {
                          item.dataset.targetLineId = input.dataset.targetLineId;
                     }
+                    // --- NUEVA MODIFICACIÓN --- No se necesita un dataset especial para la nueva orden, ya que la función `selectProductForManualOrder` no lo requiere.
 
                     resultsContainer.appendChild(item);
                 });
