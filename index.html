@@ -82,13 +82,12 @@
         /* --- ESTILOS DEL MAPA DE UBICACIONES --- */
         .map-container {
             display: grid;
-            /* Modificado para ajustar el espacio de los pasillos y añadir la nueva columna G */
             grid-template-columns: 1fr 0.5fr 1fr 1fr 0.5fr 1fr 1fr 0.5fr 1fr 0.5fr 1fr;
             gap: 5px;
             background-color: #e9ecef;
             padding: 10px;
             border-radius: .5rem;
-            max-width: 1600px; /* Aumentado para el nuevo contenido */
+            max-width: 1600px;
             margin: auto;
         }
         .map-block, .map-aisle, .map-header, .map-module {
@@ -122,14 +121,13 @@
             z-index: 10;
         }
 
-        /* --- NUEVOS ESTILOS PARA UBICACIONES INDIVIDUALES --- */
         .map-module {
             display: flex;
-            flex-direction: row; /* Cambiado a horizontal */
+            flex-direction: row;
             gap: 3px;
             padding: 3px;
             justify-content: space-around;
-            align-items: stretch; /* Asegura que todas las celdas tengan la misma altura */
+            align-items: stretch;
         }
         .map-location-cell {
             padding: 4px 2px;
@@ -140,7 +138,7 @@
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
             user-select: none;
-            flex-grow: 1; /* Permite que las celdas crezcan para ocupar el espacio */
+            flex-grow: 1;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -151,7 +149,6 @@
             z-index: 10;
             position: relative;
         }
-        /* --- FIN NUEVOS ESTILOS --- */
 
         .map-block-green { background-color: #198754; }
         .map-block-yellow { background-color: #ffc107; color: #000; }
@@ -250,7 +247,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v3.2 (Versión Estable) - 31/07/2025</span>
+                    <span class="text-muted">v4.0 (Etiquetas) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -328,7 +325,6 @@
         };
 
         async function initializeGapiClient() {
-            // FIX: Removed API Key from initialization. OAuth token will be used for authentication.
             await gapi.client.init({
                 discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
             });
@@ -467,7 +463,6 @@
             const empaquetadoPendiente = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
             const listasParaDespacho = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PACKAGED).length;
 
-            // --- INICIO: Lógica para semáforo de controles ---
             let controlStatus = { green: 0, yellow: 0, red: 0 };
             const today = new Date();
             const totalLocations = validLocations.size;
@@ -492,7 +487,6 @@
             const greenPercent = totalLocations > 0 ? (controlStatus.green / totalLocations * 100).toFixed(1) : 0;
             const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
             const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
-            // --- FIN: Lógica para semáforo de controles ---
 
             container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
                 <div class="row">
@@ -571,7 +565,6 @@
         function renderProductsView() {
             const container = DOM.views.productos;
             
-            // --- INICIO: Lógica para stats de productos ---
             const totalProducts = (fullData.productos || []).length;
             let productsWithoutStock = 0;
             let lowStockProducts = 0;
@@ -585,7 +578,6 @@
                 }
             });
             const lowStockPercentage = totalProducts > 0 ? (lowStockProducts / totalProducts * 100).toFixed(1) : 0;
-            // --- FIN: Lógica para stats de productos ---
 
             container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -680,7 +672,6 @@
         function renderOrdersView() {
             const container = DOM.views.ordenes;
 
-            // --- INICIO: Lógica para stats de órdenes ---
             const totalOrders = (fullData.ordenes || []).length;
             const ordersByChannel = (fullData.ordenes || []).reduce((acc, order) => {
                 const channel = order[5] || 'SIN CANAL';
@@ -696,7 +687,6 @@
                     </div></div>
                 </div>
             `).join('');
-            // --- FIN: Lógica para stats de órdenes ---
 
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
@@ -724,10 +714,9 @@
                 <div class="col-md-3"><input type="date" id="order-date-filter" class="form-control"></div>
                 <div class="col-md-3"><select id="order-channel-filter" class="form-select"><option value="">Todos los Canales</option>${channelOptions}</select></div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
-                    <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th></tr>
-                </thead><tbody id="orders-table">${(fullData.ordenes || []).map((row, index) => getOrderRowHTML(row, index)).join('')}</tbody></table>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
+                <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th><th class="text-center">Acciones</th></tr>
+            </thead><tbody id="orders-table">${(fullData.ordenes || []).map((row, index) => getOrderRowHTML(row, index)).join('')}</tbody></table>
             </div>`;
         }
         function renderControlsView() {
@@ -758,10 +747,7 @@
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
             const mapLayout = [
-                // Headers
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
-                
-                // Filas
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
@@ -934,6 +920,20 @@
                 </button>`;
             }
 
+            let actionButtonHTML = '';
+            if (estadoUpper === CONSTANTS.STATUS.PICKED) {
+                actionButtonHTML = `<button class="btn btn-icon text-secondary" title="Imprimir Etiqueta" 
+                    data-action="download-order-label"
+                    data-product-name="${sanitizeHTML(row[2])}"
+                    data-product-sku="${sanitizeHTML(row[3])}"
+                    data-customer-name="${sanitizeHTML(cliente)}"
+                    data-channel="${sanitizeHTML(row[5])}"
+                    data-date="${sanitizeHTML(row[0])}"
+                    data-order-number="${sanitizeHTML(ordenNum)}">
+                        <span class="material-icons">label</span>
+                    </button>`;
+            }
+
             return `<tr class="${rowClass}" data-search="${searchData}">
                 <td>${sanitizeHTML(row[0])}</td>
                 <td>
@@ -946,6 +946,7 @@
                 <td>${sanitizeHTML(row[5])}</td>
                 <td class="align-middle"><span class="badge rounded-pill badge-estado ${estado}">${estado}</span></td>
                 <td class="text-center align-middle">${ordenSignalHTML}</td>
+                <td class="text-center align-middle">${actionButtonHTML}</td>
             </tr>`;
         }
         function getMovementRowHTML(row) {
@@ -2059,6 +2060,7 @@
                 'download-products-csv': downloadProductsCSV,
                 'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
                 'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
+                'download-order-label': () => downloadOrderLabel(data),
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2600,14 +2602,10 @@
             
             const fileName = `Remito_${remitoId.replace(/[\/\\?%*:|"<>]/g, '-')}.pdf`;
 
-            // Título
             doc.setFontSize(20);
             doc.text('Detalle de Remito', 14, 22);
-
-            // Información del Remito
             doc.setFontSize(12);
             doc.text(`Número: ${remitoId}`, 14, 32);
-            
             doc.setFontSize(10);
             doc.text(`Fecha: ${data.fecha}`, 14, 38);
             doc.text(`Tipo: ${data.tipo}`, 14, 43);
@@ -2615,7 +2613,6 @@
             doc.text(`Origen/Destino: ${data.origen}`, 14, 53);
             doc.text(`Unidades Totales: ${data.totalUnidades}`, 14, 58);
 
-            // Tabla de productos
             doc.autoTable({
                 head: [['ID Producto', 'Nombre', 'Cantidad']],
                 body: tableRows,
@@ -2625,6 +2622,63 @@
             });
 
             addFooters(doc);
+            doc.save(fileName);
+        }
+
+        function downloadOrderLabel(data) {
+            const { jsPDF } = window.jspdf;
+            // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
+
+            const margin = 3;
+            const maxWidth = 40 - (margin * 2);
+            let y = margin + 4; // Posición Y inicial
+
+            // Nombre del producto (grande y en negrita)
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
+            doc.text(productNameLines, margin, y);
+            y += (productNameLines.length * 3.5);
+
+            // SKU
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`SKU: ${data.productSku}`, margin, y);
+            y += 6;
+
+            // Línea divisoria
+            doc.setLineWidth(0.2);
+            doc.line(margin, y, 40 - margin, y);
+            y += 5;
+
+            // Cliente y Canal
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
+            doc.text(customerNameLines, margin, y);
+            y += (customerNameLines.length * 3.5) + 1;
+
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Canal: ${data.channel}`, margin, y);
+            y += 6;
+
+            // Fecha y Orden
+            doc.setFontSize(7);
+            doc.text(`Fecha: ${data.date}`, margin, y);
+            if (data.orderNumber) {
+                const orderText = `Nro Orden: ${data.orderNumber}`;
+                const textWidth = doc.getTextWidth(orderText);
+                doc.text(orderText, 40 - margin - textWidth, y);
+            }
+            y += 8;
+            
+            // Pie de etiqueta
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CONFORT ANVE', 20, 60 - margin, { align: 'center' });
+
+            const fileName = `Etiqueta_${data.productSku}_${data.customerName.replace(/ /g,"_")}.pdf`;
             doc.save(fileName);
         }
 
