@@ -560,7 +560,7 @@
                 <table class="table table-hover bg-white rounded shadow-sm">
                     <thead class="table-light">
                         <tr>
-                            <th>#</th><th>ID Producto</th><th>Nombre</th>
+                            <th>#</th><th>ID Producto</th><th>Nombre</th><th>Cliente</th>
                             <th class="text-end">Cantidad a Pickear</th><th>Ubicación Sugerida</th>
                             <th class="text-center">Estado</th><th class="text-center">Acción</th>
                         </tr>
@@ -572,7 +572,7 @@
             const tableBody = document.getElementById('tasks-table-body');
             if(!tableBody) return;
             if (virtualTasks.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">No hay tareas pendientes.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">No hay tareas pendientes.</td></tr>`;
                 return;
             }
             tableBody.innerHTML = virtualTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
@@ -982,7 +982,7 @@
             return `<tr data-search="${searchData}"><td>${sanitizeHTML(row[1])}</td><td>${sanitizeHTML(row[2])}</td><td>${sanitizeHTML(row[3])}</td><td>${sanitizeHTML(row[4])}</td><td>${sanitizeHTML(row[5])}</td><td class="text-end">${sanitizeHTML(row[6])}</td><td class="text-end">${sanitizeHTML(row[7])}</td><td class="text-end ${claseDif}">${diferencia}</td><td>${sanitizeHTML(row[9] || '')}</td></tr>`;
         }
         function getTaskRowHTML(task, index) {
-            const { idProducto, nombre, totalQuantity, state } = task;
+            const { idProducto, nombre, totalQuantity, state, clientes } = task;
             const currentState = state.toUpperCase();
 
             let locationHTML = 'S/U';
@@ -1012,6 +1012,7 @@
                     <td>${index + 1}</td>
                     <td>${sanitizeHTML(idProducto)}</td>
                     <td>${sanitizeHTML(nombre)}</td>
+                    <td>${sanitizeHTML(clientes.join(', '))}</td>
                     <td class="text-end fw-bold">${totalQuantity}</td>
                     <td>${sanitizeHTML(locationHTML)}</td>
                     <td class="text-center"><span class="badge rounded-pill badge-estado ${currentState}">${currentState}</span></td>
@@ -1296,15 +1297,17 @@
             processableOrders.forEach(order => {
                 const idProducto = order[3];
                 const estado = order[6].toUpperCase();
+                const cliente = order[7] || 'N/A';
                 const taskKey = `${idProducto}-${estado}`;
                 if (!tasksMap.has(taskKey)) {
-                    tasksMap.set(taskKey, { idProducto: idProducto, nombre: order[2], totalQuantity: 0, orders: [], state: estado });
+                    tasksMap.set(taskKey, { idProducto: idProducto, nombre: order[2], totalQuantity: 0, orders: [], state: estado, clientes: new Set() });
                 }
                 const task = tasksMap.get(taskKey);
                 task.totalQuantity += parseInt(order[4], 10) || 0;
+                task.clientes.add(cliente);
                 task.orders.push({ idVenta: order[1], cantidad: parseInt(order[4], 10) || 0, index: (fullData.ordenes || []).indexOf(order) });
             });
-            virtualTasks = Array.from(tasksMap.values());
+            virtualTasks = Array.from(tasksMap.values()).map(task => ({...task, clientes: Array.from(task.clientes)}));
         }
         function handleStageClick(productId, currentStage) {
             if (currentStage.toUpperCase() === CONSTANTS.STATUS.PENDING) {
@@ -1804,7 +1807,7 @@
             const lines = document.querySelectorAll('.control-product-line');
             if (lines.length === 0) return alert("No hay productos en la lista para controlar.");
 
-            showLoading(true, "Procesando control y generando ajustes...");
+            showLoading(true, "Registrando control...");
 
             const controlRows = [];
             const movementRows = [];
@@ -1825,20 +1828,24 @@
                 
                 const adjustment = physicalStock - systemStock;
 
+                // Siempre registrar el control
+                controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
+                
+                // Solo registrar movimiento si hay ajuste
                 if (adjustment !== 0) {
-                    controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
                     movementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
                 }
             }
 
             try {
                 if (controlRows.length > 0) {
-                    await Promise.all([
-                        appendToSheet(CONSTANTS.RANGES.controles, controlRows),
-                        appendToSheet(CONSTANTS.RANGES.movimientos, movementRows)
-                    ]);
+                    const promises = [appendToSheet(CONSTANTS.RANGES.controles, controlRows)];
+                    if (movementRows.length > 0) {
+                        promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, movementRows));
+                    }
+                    await Promise.all(promises);
                 } else {
-                    alert("No se encontraron diferencias de stock para ajustar.");
+                    alert("No se procesó ningún producto válido en el control.");
                 }
                 activeModals[CONSTANTS.IDS.LOCATION_CONTROL_MODAL]?.hide();
                 await loadInitialData();
@@ -1976,7 +1983,7 @@
             const lines = document.querySelectorAll('.product-control-line');
             if (lines.length === 0) return alert("No hay ubicaciones en la lista para controlar.");
 
-            showLoading(true, "Procesando control y generando ajustes...");
+            showLoading(true, "Registrando control...");
 
             const controlRows = [];
             const movementRows = [];
@@ -2009,8 +2016,11 @@
                 
                 const adjustment = physicalStock - systemStock;
 
+                // Siempre registrar el control
+                controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.PRODUCT_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
+                
+                // Solo registrar movimiento si hay ajuste
                 if (adjustment !== 0) {
-                    controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.PRODUCT_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
                     movementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
                 }
             }
@@ -2022,12 +2032,13 @@
 
             try {
                 if (controlRows.length > 0) {
-                     await Promise.all([
-                        appendToSheet(CONSTANTS.RANGES.controles, controlRows),
-                        appendToSheet(CONSTANTS.RANGES.movimientos, movementRows)
-                    ]);
+                    const promises = [appendToSheet(CONSTANTS.RANGES.controles, controlRows)];
+                    if (movementRows.length > 0) {
+                        promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, movementRows));
+                    }
+                    await Promise.all(promises);
                 } else {
-                    alert("No se encontraron diferencias de stock para ajustar.");
+                    alert("No se procesó ninguna ubicación válida en el control.");
                 }
                 activeModals[CONSTANTS.IDS.PRODUCT_CONTROL_MODAL]?.hide();
                 await loadInitialData();
@@ -2543,7 +2554,7 @@
                 return;
             }
 
-            const tableColumn = ["#", "ID Producto", "Nombre", "Cantidad", "Ubicación", "OK", "Falta"];
+            const tableColumn = ["#", "ID Producto", "Nombre", "Cliente", "Cantidad", "Ubicación", "OK", "Falta"];
             const tableRows = [];
 
             pendingTasks.forEach((task, index) => {
@@ -2558,6 +2569,7 @@
                     index + 1,
                     task.idProducto,
                     task.nombre,
+                    task.clientes.join(', '),
                     task.totalQuantity,
                     bestLocation,
                     '', 
@@ -2593,7 +2605,7 @@
                 body: tableRows,
                 startY: 30,
                 didDrawCell: function(data) {
-                    if (data.section === 'body' && (data.column.index === 5 || data.column.index === 6)) {
+                    if (data.section === 'body' && (data.column.index === 6 || data.column.index === 7)) {
                         doc.rect(data.cell.x + data.cell.width / 2 - 2, data.cell.y + 2, 4, 4);
                     }
                 }
@@ -2758,7 +2770,6 @@
             doc.save(fileName);
         }
 
-        // --- MODIFICACIÓN DE ETIQUETA ---
         function downloadOrderLabel(data) {
             const { jsPDF } = window.jspdf;
             // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
