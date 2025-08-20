@@ -764,8 +764,10 @@
             document.getElementById('controls-table').innerHTML = (fullData.controles || []).slice().reverse().map(getControlRowHTML).join('');
         }
 
+        // --- INICIO DE LA MODIFICACIÓN DEL MAPA ---
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
+            // Se añaden las nuevas filas para F130-134 y F140-144
             const mapLayout = [
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
@@ -780,6 +782,8 @@
                 { type: 'block', label: 'A30/34', prefix: 'A', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B30/34', prefix: 'B', start: 30, count: 5 }, { type: 'block', label: 'C30/34', prefix: 'C', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D30/34', prefix: 'D', start: 30, count: 5 }, { type: 'block', label: 'E30/34', prefix: 'E', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F30/34', prefix: 'F', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G30/32', prefix: 'G', start: 30, count: 3 },
                 { type: 'block', label: 'A20/24', prefix: 'A', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B20/24', prefix: 'B', start: 20, count: 5 }, { type: 'block', label: 'C20/24', prefix: 'C', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D20/24', prefix: 'D', start: 20, count: 5 }, { type: 'block', label: 'E20/24', prefix: 'E', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F20/24', prefix: 'F', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G20/24', prefix: 'G', start: 20, count: 5 },
                 { type: 'block', label: 'A10/14', prefix: 'A', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B10/14', prefix: 'B', start: 10, count: 5 }, { type: 'block', label: 'C10/14', prefix: 'C', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D10/14', prefix: 'D', start: 10, count: 5 }, { type: 'block', label: 'E10/14', prefix: 'E', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F10/14', prefix: 'F', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G10/14', prefix: 'G', start: 10, count: 5 },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F130/134', prefix: 'F', start: 130, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F140/144', prefix: 'F', start: 140, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'JAULA00', prefix: 'JAULA', start: 0, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'Z00 PISO', prefix: 'Z', start: 0, count: 1, span: 9 },
                 { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'ZLUCAS', span: 2, count: 1 },
             ];
@@ -843,6 +847,7 @@
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
         }
+        // --- FIN DE LA MODIFICACIÓN DEL MAPA ---
 
         // --- 6. FUNCIONES DE AYUDA Y UTILIDADES ---
 
@@ -920,7 +925,6 @@
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
         
-        // --- MODIFICACIÓN DE ETIQUETA --- Se añade data-quantity al botón para pasar la cantidad a la función de impresión.
         function getOrderRowHTML(row, index) {
             const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
@@ -2759,25 +2763,21 @@
             doc.save(fileName);
         }
 
-        // --- MODIFICACIÓN DE ETIQUETA --- La función se reescribe completamente para el nuevo formato y la lógica de multi-etiqueta.
         function downloadOrderLabel(data) {
             const { jsPDF } = window.jspdf;
-            // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
 
-            const margin = 3;
-            const maxWidth = 40 - (margin * 2);
-            const centerX = 20;
             const totalQuantity = parseInt(data.quantity, 10) || 1;
 
             for (let i = 1; i <= totalQuantity; i++) {
                 if (i > 1) {
                     doc.addPage();
                 }
-
+                const margin = 3;
+                const maxWidth = 40 - (margin * 2);
+                const centerX = 20;
                 let y = margin + 5;
 
-                // --- Bloque 1: Producto ---
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'bold');
                 const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
@@ -2789,17 +2789,14 @@
                 doc.text(`SKU: ${data.productSku}`, centerX, y, { align: 'center' });
                 y += 4;
                 
-                // Cantidad (nuevo campo)
                 const quantityText = `${i} de ${totalQuantity}`;
                 doc.text(quantityText, centerX, y, { align: 'center' });
                 y += 5;
 
-                // --- Separador ---
                 doc.setLineWidth(0.2);
                 doc.line(margin, y, 40 - margin, y);
                 y += 5;
 
-                // --- Bloque 2: Cliente ---
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
@@ -2811,11 +2808,9 @@
                 doc.text(data.channel, centerX, y, { align: 'center' });
                 y += 5;
 
-                // --- Separador ---
                 doc.line(margin, y, 40 - margin, y);
                 y += 5;
 
-                // --- Bloque 3: Orden ---
                 doc.setFontSize(7);
                 doc.setFont('helvetica', 'normal');
                 doc.text(data.date, centerX, y, { align: 'center' });
@@ -2828,10 +2823,8 @@
                 }
                 y += 5;
                 
-                // --- Separador ---
                 doc.line(margin, y, 40 - margin, y);
 
-                // --- Pie de etiqueta ---
                 doc.setFontSize(12);
                 doc.setFont('helvetica', 'bold');
                 doc.text('CONFORT ANVE', centerX, 60 - margin, { align: 'center' });
