@@ -764,14 +764,10 @@
             document.getElementById('controls-table').innerHTML = (fullData.controles || []).slice().reverse().map(getControlRowHTML).join('');
         }
 
-        // --- INICIO DE LA MODIFICACIÓN DEL MAPA ---
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
-            // Se reordena el layout para que los módulos 140 y 130 aparezcan arriba
             const mapLayout = [
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
-                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F140/144', prefix: 'F', start: 140, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
-                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F130/134', prefix: 'F', start: 130, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
@@ -847,7 +843,6 @@
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
         }
-        // --- FIN DE LA MODIFICACIÓN DEL MAPA ---
 
         // --- 6. FUNCIONES DE AYUDA Y UTILIDADES ---
 
@@ -2763,40 +2758,49 @@
             doc.save(fileName);
         }
 
+        // --- MODIFICACIÓN DE ETIQUETA ---
         function downloadOrderLabel(data) {
             const { jsPDF } = window.jspdf;
+            // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
 
+            const margin = 3;
+            const maxWidth = 40 - (margin * 2);
+            const centerX = 20;
             const totalQuantity = parseInt(data.quantity, 10) || 1;
 
             for (let i = 1; i <= totalQuantity; i++) {
                 if (i > 1) {
                     doc.addPage();
                 }
-                const margin = 3;
-                const maxWidth = 40 - (margin * 2);
-                const centerX = 20;
+
                 let y = margin + 5;
 
-                doc.setFontSize(10);
+                // --- Bloque 1: Producto ---
+                doc.setFontSize(9); // Achicar fuente del nombre del producto
                 doc.setFont('helvetica', 'bold');
                 const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
                 doc.text(productNameLines, centerX, y, { align: 'center' });
-                y += (productNameLines.length * 4);
+                y += (productNameLines.length * 3.5); // Ajustar espaciado
 
                 doc.setFontSize(8);
                 doc.setFont('helvetica', 'normal');
-                doc.text(`SKU: ${data.productSku}`, centerX, y, { align: 'center' });
+                doc.text(`${data.productSku}`, centerX, y, { align: 'center' }); // Se quita "SKU: "
                 y += 4;
                 
+                // Cantidad (1 de 1)
                 const quantityText = `${i} de ${totalQuantity}`;
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
                 doc.text(quantityText, centerX, y, { align: 'center' });
                 y += 5;
 
+                // --- Separador ---
                 doc.setLineWidth(0.2);
                 doc.line(margin, y, 40 - margin, y);
                 y += 5;
 
+                // --- Bloque 2: Cliente ---
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
@@ -2808,26 +2812,22 @@
                 doc.text(data.channel, centerX, y, { align: 'center' });
                 y += 5;
 
+                // --- Separador ---
                 doc.line(margin, y, 40 - margin, y);
                 y += 5;
 
+                // --- Bloque 3: Orden ---
                 doc.setFontSize(7);
                 doc.setFont('helvetica', 'normal');
                 doc.text(data.date, centerX, y, { align: 'center' });
                 y += 4;
 
                 if (data.orderNumber) {
-                    doc.setFontSize(10);
+                    doc.setFontSize(9); // Achicar fuente
                     doc.setFont('helvetica', 'bold');
                     doc.text(data.orderNumber, centerX, y, { align: 'center' });
                 }
-                y += 5;
-                
-                doc.line(margin, y, 40 - margin, y);
-
-                doc.setFontSize(12);
-                doc.setFont('helvetica', 'bold');
-                doc.text('CONFORT ANVE', centerX, 60 - margin, { align: 'center' });
+                // No se agrega más espacio para eliminar el pie
             }
 
             const fileName = `Etiqueta_${data.productSku}_${data.customerName.replace(/ /g,"_")}.pdf`;
