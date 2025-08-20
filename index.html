@@ -298,7 +298,6 @@
                 LOCATION_CONTROL_MODAL: 'locationControlModal', 
                 PRODUCT_CONTROL_MODAL: 'productControlModal', 
                 LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal',
-                // --- NUEVA MODIFICACIÓN --- Se añade el ID para el nuevo modal de orden manual
                 MANUAL_ORDER_MODAL: 'manualOrderModal'
             },
             DEFAULT_LOCATION: 'SIN_UBICACION',
@@ -708,7 +707,6 @@
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             
-            // --- NUEVA MODIFICACIÓN --- Se añade un div para agrupar los botones de acción
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
@@ -921,6 +919,8 @@
             const searchData = `${id} ${nombre}`.toLowerCase();
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
+        
+        // --- MODIFICACIÓN DE ETIQUETA --- Se añade data-quantity al botón para pasar la cantidad a la función de impresión.
         function getOrderRowHTML(row, index) {
             const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
@@ -948,6 +948,7 @@
                     data-action="download-order-label"
                     data-product-name="${sanitizeHTML(row[2])}"
                     data-product-sku="${sanitizeHTML(row[3])}"
+                    data-quantity="${sanitizeHTML(row[4])}"
                     data-customer-name="${sanitizeHTML(cliente)}"
                     data-channel="${sanitizeHTML(row[5])}"
                     data-date="${sanitizeHTML(row[0])}"
@@ -1579,10 +1580,6 @@
             createAndShowModal(CONSTANTS.IDS.REMITO_DETAIL_MODAL, modalHTML);
         }
         
-        // --- NUEVA MODIFICACIÓN --- Inicio del bloque de funciones para la nueva orden manual
-        /**
-         * Muestra el modal para ingresar una nueva orden manualmente.
-         */
         function showManualOrderModal() {
             const modalHTML = `
             <div class="modal fade" id="${CONSTANTS.IDS.MANUAL_ORDER_MODAL}" tabindex="-1">
@@ -1634,10 +1631,6 @@
             </div>`;
             createAndShowModal(CONSTANTS.IDS.MANUAL_ORDER_MODAL, modalHTML);
         }
-
-        /**
-         * Guarda la nueva orden manual en la hoja de cálculo.
-         */
         async function saveManualOrder() {
             const idVenta = document.getElementById('manualOrderIdVenta').value.trim();
             const cliente = document.getElementById('manualOrderCliente').value.trim();
@@ -1680,10 +1673,6 @@
                 showLoading(false);
             }
         }
-        
-        /**
-         * Rellena los campos del producto seleccionado en el modal de nueva orden.
-         */
         function selectProductForManualOrder(productId, productName) {
             const nameInput = document.getElementById('manualOrderProductName');
             const idInput = document.getElementById('manualOrderProductId');
@@ -1696,8 +1685,6 @@
             resultsContainer.innerHTML = '';
             resultsContainer.style.display = 'none';
         }
-        // --- FIN del bloque de funciones ---
-
 
         function showLocationControlModal() {
             const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
@@ -2203,7 +2190,6 @@
                 'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
                 'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
                 'download-order-label': () => downloadOrderLabel(data),
-                // --- NUEVA MODIFICACIÓN --- Se añaden las acciones para la nueva orden manual
                 'show-manual-order-modal': showManualOrderModal,
                 'save-manual-order': saveManualOrder,
                 'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
@@ -2228,7 +2214,6 @@
                 searchProductsForMovement(target, 'select-product-for-product-control');
             } else if (action === 'search-replacement-product') {
                 searchReplacementProduct(target, target.dataset.orderIndex);
-            // --- NUEVA MODIFICACIÓN --- Se añade la lógica para el buscador de productos en la nueva orden
             } else if (action === 'search-products-for-order') {
                 searchProductsForMovement(target, 'select-product-for-manual-order');
             }
@@ -2286,7 +2271,6 @@
                     if (selectAction === 'select-product-for-control') {
                          item.dataset.targetLineId = input.dataset.targetLineId;
                     }
-                    // --- NUEVA MODIFICACIÓN --- No se necesita un dataset especial para la nueva orden, ya que la función `selectProductForManualOrder` no lo requiere.
 
                     resultsContainer.appendChild(item);
                 });
@@ -2775,6 +2759,7 @@
             doc.save(fileName);
         }
 
+        // --- MODIFICACIÓN DE ETIQUETA --- La función se reescribe completamente para el nuevo formato y la lógica de multi-etiqueta.
         function downloadOrderLabel(data) {
             const { jsPDF } = window.jspdf;
             // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
@@ -2782,51 +2767,75 @@
 
             const margin = 3;
             const maxWidth = 40 - (margin * 2);
-            let y = margin + 4; // Posición Y inicial
+            const centerX = 20;
+            const totalQuantity = parseInt(data.quantity, 10) || 1;
 
-            // Nombre del producto (grande y en negrita)
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
-            doc.text(productNameLines, margin, y);
-            y += (productNameLines.length * 3.5);
+            for (let i = 1; i <= totalQuantity; i++) {
+                if (i > 1) {
+                    doc.addPage();
+                }
 
-            // SKU
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`SKU: ${data.productSku}`, margin, y);
-            y += 6;
+                let y = margin + 5;
 
-            // Línea divisoria
-            doc.setLineWidth(0.2);
-            doc.line(margin, y, 40 - margin, y);
-            y += 5;
+                // --- Bloque 1: Producto ---
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
+                doc.text(productNameLines, centerX, y, { align: 'center' });
+                y += (productNameLines.length * 4);
 
-            // Cliente y Canal
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
-            doc.text(customerNameLines, margin, y);
-            y += (customerNameLines.length * 3.5) + 1;
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`SKU: ${data.productSku}`, centerX, y, { align: 'center' });
+                y += 4;
+                
+                // Cantidad (nuevo campo)
+                const quantityText = `${i} de ${totalQuantity}`;
+                doc.text(quantityText, centerX, y, { align: 'center' });
+                y += 5;
 
-            doc.setFont('helvetica', 'normal');
-            doc.text(`Canal: ${data.channel}`, margin, y);
-            y += 6;
+                // --- Separador ---
+                doc.setLineWidth(0.2);
+                doc.line(margin, y, 40 - margin, y);
+                y += 5;
 
-            // Fecha y Orden
-            doc.setFontSize(7);
-            doc.text(`Fecha: ${data.date}`, margin, y);
-            if (data.orderNumber) {
-                const orderText = `Nro Orden: ${data.orderNumber}`;
-                const textWidth = doc.getTextWidth(orderText);
-                doc.text(orderText, 40 - margin - textWidth, y);
+                // --- Bloque 2: Cliente ---
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
+                doc.text(customerNameLines, centerX, y, { align: 'center' });
+                y += (customerNameLines.length * 3.5) + 1;
+
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                doc.text(data.channel, centerX, y, { align: 'center' });
+                y += 5;
+
+                // --- Separador ---
+                doc.line(margin, y, 40 - margin, y);
+                y += 5;
+
+                // --- Bloque 3: Orden ---
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.text(data.date, centerX, y, { align: 'center' });
+                y += 4;
+
+                if (data.orderNumber) {
+                    doc.setFontSize(10);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(data.orderNumber, centerX, y, { align: 'center' });
+                }
+                y += 5;
+                
+                // --- Separador ---
+                doc.line(margin, y, 40 - margin, y);
+
+                // --- Pie de etiqueta ---
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('CONFORT ANVE', centerX, 60 - margin, { align: 'center' });
             }
-            y += 8;
-            
-            // Pie de etiqueta
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.text('CONFORT ANVE', 20, 60 - margin, { align: 'center' });
 
             const fileName = `Etiqueta_${data.productSku}_${data.customerName.replace(/ /g,"_")}.pdf`;
             doc.save(fileName);
