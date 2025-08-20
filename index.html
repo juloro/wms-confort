@@ -247,7 +247,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v4.1 (Estable) - 31/07/2025</span>
+                    <span class="text-muted">v4.0 (Etiquetas) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -284,7 +284,7 @@
                 EGRESO: ['VENTA', 'MAYORISTA', 'REPOSICION']
             },
             CONTROL_TYPE: { TASK_INCIDENCE: 'INCIDENCIA TAREA', PRODUCT_COUNT: 'CONTROL PRODUCTO', LOCATION_COUNT: 'CONTROL UBICACIÓN' },
-            IDS: { NEW_PRODUCT_MODAL: 'newProductModal', EDIT_PRODUCT_MODAL: 'editProductModal', STOCK_LOCATION_MODAL: 'stockLocationModal', NEW_MOVEMENT_MODAL: 'newMovementModal', MOVE_STOCK_MODAL: 'moveStockModal', REMITO_DETAIL_MODAL: 'remitoDetailModal', PICKING_MODAL: 'pickingModal', INCIDENT_MODAL: 'incidentManagementModal', ADD_ORDER_MODAL: 'addOrderModal', CHANGE_PRODUCT_MODAL: 'changeProductModal', LOCATION_CONTROL_MODAL: 'locationControlModal', PRODUCT_CONTROL_MODAL: 'productControlModal', LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal', NEW_ORDER_MODAL: 'newOrderModal' },
+            IDS: { NEW_PRODUCT_MODAL: 'newProductModal', EDIT_PRODUCT_MODAL: 'editProductModal', STOCK_LOCATION_MODAL: 'stockLocationModal', NEW_MOVEMENT_MODAL: 'newMovementModal', MOVE_STOCK_MODAL: 'moveStockModal', REMITO_DETAIL_MODAL: 'remitoDetailModal', PICKING_MODAL: 'pickingModal', INCIDENT_MODAL: 'incidentManagementModal', ADD_ORDER_MODAL: 'addOrderModal', CHANGE_PRODUCT_MODAL: 'changeProductModal', LOCATION_CONTROL_MODAL: 'locationControlModal', PRODUCT_CONTROL_MODAL: 'productControlModal', LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal' },
             DEFAULT_LOCATION: 'SIN_UBICACION',
             DEFAULT_INGRESS_LOCATION: 'Z00',
             CONTROL_ID_PREFIX: 'CTRL-',
@@ -696,10 +696,7 @@
             container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">Órdenes</h2>
-                <div class="btn-group">
-                    <button class="btn btn-primary" data-action="show-new-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>
-                    ${incidentButtonHTML}
-                </div>
+                ${incidentButtonHTML}
             </div>
 
             <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
@@ -2064,9 +2061,6 @@
                 'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
                 'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
                 'download-order-label': () => downloadOrderLabel(data),
-                'show-new-order-modal': showNewOrderModal,
-                'save-new-order': saveNewOrder,
-                'select-product-for-new-order': () => selectProductForNewOrder(data.productId, data.productName),
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2088,8 +2082,6 @@
                 searchProductsForMovement(target, 'select-product-for-product-control');
             } else if (action === 'search-replacement-product') {
                 searchReplacementProduct(target, target.dataset.orderIndex);
-            } else if (action === 'search-products-for-new-order') {
-                searchProductsForMovement(target, 'select-product-for-new-order');
             }
 
              if(target.classList.contains('picking-qty-input')) {
@@ -2144,9 +2136,6 @@
                     }
                     if (selectAction === 'select-product-for-control') {
                          item.dataset.targetLineId = input.dataset.targetLineId;
-                    }
-                     if (selectAction === 'select-product-for-new-order') {
-                        // No extra data needed, handled in the select function
                     }
 
                     resultsContainer.appendChild(item);
