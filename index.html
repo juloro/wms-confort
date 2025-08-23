@@ -277,7 +277,6 @@
                 controles: 'Controles!A2:J',
                 entradasSalidas: 'ENTRADAS_SALIDAS!A2:H'
             },
-            // MODIFICADO: Se elimina el estado EMPAQUETADO
             STATUS: { PENDING: 'PENDIENTE', PICKED: 'PICKEADO', SHIPPED: 'DESPACHADO', INCIDENCE: 'INCIDENCIA', CANCELLED: 'CANCELADO' },
             MOVEMENT_TYPE: { INGRESS: 'INGRESO', EGRESS: 'EGRESO', ADJUSTMENT: 'AJUSTE', MOVE: 'MOVER', PICKING: 'PICKING' },
             MOVEMENT_REASONS: {
@@ -476,7 +475,6 @@
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
             const ordenesConIncidencia = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE).length;
             const pickingPendientes = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING).length;
-            // MODIFICADO: Se cambia la lógica para contar órdenes listas para despacho
             const paraDespachar = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
 
             let controlStatus = { green: 0, yellow: 0, red: 0 };
@@ -504,7 +502,6 @@
             const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
             const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
 
-            // MODIFICADO: Se ajustan las tarjetas del dashboard para eliminar "Empaquetado" y "Listas para Despacho"
             container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
                 <div class="row">
                     <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
@@ -685,12 +682,20 @@
         function renderOrdersView() {
             const container = DOM.views.ordenes;
 
-            const totalOrders = (fullData.ordenes || []).length;
-            const ordersByChannel = (fullData.ordenes || []).reduce((acc, order) => {
-                const channel = order[5] || 'SIN CANAL';
-                acc[channel] = (acc[channel] || 0) + 1;
-                return acc;
-            }, {});
+            // MODIFICADO: Se filtra para contar solo órdenes activas (no despachadas ni canceladas) por canal.
+            const ordersByChannel = (fullData.ordenes || [])
+                .filter(o => {
+                    const estado = (o[6] || '').toUpperCase();
+                    return estado !== CONSTANTS.STATUS.SHIPPED && estado !== CONSTANTS.STATUS.CANCELLED;
+                })
+                .reduce((acc, order) => {
+                    const channel = order[5] || 'SIN CANAL';
+                    acc[channel] = (acc[channel] || 0) + 1;
+                    return acc;
+                }, {});
+
+            const totalActiveOrders = Object.values(ordersByChannel).reduce((sum, count) => sum + count, 0);
+
             const channelEntries = Object.entries(ordersByChannel).sort((a,b) => b[1] - a[1]);
             const channelCardsHTML = channelEntries.map(([channel, count]) => `
                 <div class="col">
@@ -708,7 +713,6 @@
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
-            // MODIFICADO: Se añade un filtro a las órdenes para mostrar solo PENDIENTE y PICKEADO. Se usa indexOf para obtener el índice original para las acciones.
             const visibleOrdersHTML = (fullData.ordenes || [])
                 .filter(o => o[6] && (o[6].toUpperCase() === CONSTANTS.STATUS.PENDING || o[6].toUpperCase() === CONSTANTS.STATUS.PICKED))
                 .map(row => getOrderRowHTML(row, fullData.ordenes.indexOf(row)))
@@ -726,8 +730,8 @@
             <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
                  <div class="col">
                     <div class="card stat-card h-100"><div class="card-body text-center">
-                        <p class="stat-card-title mb-1">TOTAL DE ÓRDENES</p>
-                        <p class="stat-card-value text-primary mb-0">${totalOrders}</p>
+                        <p class="stat-card-title mb-1">ÓRDENES ACTIVAS</p>
+                        <p class="stat-card-value text-primary mb-0">${totalActiveOrders}</p>
                     </div></div>
                 </div>
                 ${channelCardsHTML}
@@ -945,7 +949,6 @@
                 </button>`;
             }
 
-            // MODIFICADO: Se añade el botón de Despacho y se agrupan las acciones.
             let actionButtonHTML = '';
             if (estadoUpper === CONSTANTS.STATUS.PICKED) {
                 actionButtonHTML = `<div class="btn-group">
@@ -1003,8 +1006,7 @@
                     locationHTML = sortedLocations[0][0];
                 }
             }
-
-            // MODIFICADO: Se simplifica la lógica del botón, ya que siempre será para "Pickear" en esta vista.
+            
             const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
 
             return `
@@ -1291,7 +1293,6 @@
             finally { showLoading(false); }
         }
         function generateVirtualTasks() {
-            // MODIFICADO: Solo se generan tareas para órdenes en estado PENDIENTE.
             const processableStates = [CONSTANTS.STATUS.PENDING];
             const processableOrders = (fullData.ordenes || []).filter(o => o[6] && processableStates.includes(o[6].toUpperCase()));
             const tasksMap = new Map();
@@ -1311,14 +1312,11 @@
             virtualTasks = Array.from(tasksMap.values()).map(task => ({...task, clientes: Array.from(task.clientes)}));
         }
         
-        // MODIFICADO: Se simplifica la función, ya que solo se llamará para el estado PENDIENTE.
         function handleStageClick(productId, currentStage) {
             if (currentStage.toUpperCase() === CONSTANTS.STATUS.PENDING) {
                 showPickingModal(productId);
             }
         }
-
-        // MODIFICADO: La función processSimpleStage ya no es necesaria y se elimina.
         
         async function updateOrderStatus(orderIds, newStatus) {
             if (orderIds.length === 0) return;
@@ -2040,8 +2038,6 @@
             }
         }
         
-        // N U E V A   F U N C I Ó N
-        // Se añade una función para manejar el despacho de una orden.
         async function dispatchOrder(originalIndex) {
             const order = fullData.ordenes[originalIndex];
             if (!order) return alert('Error: No se encontró la orden para despachar.');
@@ -2177,7 +2173,6 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
-            // MODIFICADO: Se añade la nueva acción 'dispatch-order'
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
