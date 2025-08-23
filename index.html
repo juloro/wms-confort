@@ -247,7 +247,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v4.1 (Estable) - 31/07/2025</span>
+                    <span class="text-muted">v5.0 (Estable) - 31/07/2025</span>
                 </div>
             </div>
         </div>
@@ -277,7 +277,8 @@
                 controles: 'Controles!A2:J',
                 entradasSalidas: 'ENTRADAS_SALIDAS!A2:H'
             },
-            STATUS: { PENDING: 'PENDIENTE', PICKED: 'PICKEADO', PACKAGED: 'EMPAQUETADO', SHIPPED: 'DESPACHADO', INCIDENCE: 'INCIDENCIA', CANCELLED: 'CANCELADO' },
+            // MODIFICADO: Se elimina el estado EMPAQUETADO
+            STATUS: { PENDING: 'PENDIENTE', PICKED: 'PICKEADO', SHIPPED: 'DESPACHADO', INCIDENCE: 'INCIDENCIA', CANCELLED: 'CANCELADO' },
             MOVEMENT_TYPE: { INGRESS: 'INGRESO', EGRESS: 'EGRESO', ADJUSTMENT: 'AJUSTE', MOVE: 'MOVER', PICKING: 'PICKING' },
             MOVEMENT_REASONS: {
                 INGRESO: ['COMPRA', 'REPOSICION', 'DEVOLUCION', 'AJUSTE POR INCIDENCIA'],
@@ -475,8 +476,8 @@
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
             const ordenesConIncidencia = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE).length;
             const pickingPendientes = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING).length;
-            const empaquetadoPendiente = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
-            const listasParaDespacho = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PACKAGED).length;
+            // MODIFICADO: Se cambia la lógica para contar órdenes listas para despacho
+            const paraDespachar = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
 
             let controlStatus = { green: 0, yellow: 0, red: 0 };
             const today = new Date();
@@ -503,16 +504,13 @@
             const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
             const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
 
+            // MODIFICADO: Se ajustan las tarjetas del dashboard para eliminar "Empaquetado" y "Listas para Despacho"
             container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
                 <div class="row">
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-danger">report_problem</span><h5 class="card-title mt-2">Órdenes con Incidencia</h5><p class="card-text fw-bold dashboard-card-value">${ordenesConIncidencia}</p></div></div></div>
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-success">inventory</span><h5 class="card-title mt-2">Productos Totales</h5><p class="card-text fw-bold dashboard-card-value">${(fullData.productos || []).length}</p></div></div></div>
-                </div>
-                <div class="row">
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-warning">pending_actions</span><h5 class="card-title mt-2">Picking Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${pickingPendientes}</p></div></div></div>
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-dark">inventory_2</span><h5 class="card-title mt-2">Empaquetado Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${empaquetadoPendiente}</p></div></div></div>
-                    <div class="col-md-4 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-info">local_shipping</span><h5 class="card-title mt-2">Listas para Despacho</h5><p class="card-text fw-bold dashboard-card-value">${listasParaDespacho}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-danger">report_problem</span><h5 class="card-title mt-2">Órdenes con Incidencia</h5><p class="card-text fw-bold dashboard-card-value">${ordenesConIncidencia}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-warning">pending_actions</span><h5 class="card-title mt-2">Picking Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${pickingPendientes}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-info">local_shipping</span><h5 class="card-title mt-2">Para Despachar</h5><p class="card-text fw-bold dashboard-card-value">${paraDespachar}</p></div></div></div>
                 </div>
                 <hr style="border-color: rgba(255,255,255,0.5);">
                 <h4 class="mb-3">Estado de Controles de Ubicación</h4>
@@ -540,7 +538,7 @@
             const container = DOM.views.tareas;
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
             container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Tareas Pendientes</h2>
+                <h2>Tareas de Picking Pendientes</h2>
                 <div class="d-flex align-items-center">
                     <div class="text-center me-3 p-2 bg-light rounded shadow-sm">
                         <div class="fw-bold fs-4 text-primary">${ordenesSinEstado}</div>
@@ -572,7 +570,7 @@
             const tableBody = document.getElementById('tasks-table-body');
             if(!tableBody) return;
             if (virtualTasks.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">No hay tareas pendientes.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">No hay tareas de picking pendientes.</td></tr>`;
                 return;
             }
             tableBody.innerHTML = virtualTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
@@ -710,6 +708,12 @@
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
+            // MODIFICADO: Se añade un filtro a las órdenes para mostrar solo PENDIENTE y PICKEADO. Se usa indexOf para obtener el índice original para las acciones.
+            const visibleOrdersHTML = (fullData.ordenes || [])
+                .filter(o => o[6] && (o[6].toUpperCase() === CONSTANTS.STATUS.PENDING || o[6].toUpperCase() === CONSTANTS.STATUS.PICKED))
+                .map(row => getOrderRowHTML(row, fullData.ordenes.indexOf(row)))
+                .join('');
+
             container.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="mb-0">Órdenes</h2>
@@ -736,7 +740,7 @@
             </div>
             <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
                 <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th><th class="text-center">Acciones</th></tr>
-            </thead><tbody id="orders-table">${(fullData.ordenes || []).map((row, index) => getOrderRowHTML(row, index)).join('')}</tbody></table>
+            </thead><tbody id="orders-table">${visibleOrdersHTML}</tbody></table>
             </div>`;
         }
         function renderControlsView() {
@@ -941,19 +945,25 @@
                 </button>`;
             }
 
+            // MODIFICADO: Se añade el botón de Despacho y se agrupan las acciones.
             let actionButtonHTML = '';
             if (estadoUpper === CONSTANTS.STATUS.PICKED) {
-                actionButtonHTML = `<button class="btn btn-icon text-secondary" title="Imprimir Etiqueta" 
-                    data-action="download-order-label"
-                    data-product-name="${sanitizeHTML(row[2])}"
-                    data-product-sku="${sanitizeHTML(row[3])}"
-                    data-quantity="${sanitizeHTML(row[4])}"
-                    data-customer-name="${sanitizeHTML(cliente)}"
-                    data-channel="${sanitizeHTML(row[5])}"
-                    data-date="${sanitizeHTML(row[0])}"
-                    data-order-number="${sanitizeHTML(ordenNum)}">
-                        <span class="material-icons">label</span>
-                    </button>`;
+                actionButtonHTML = `<div class="btn-group">
+                    <button class="btn btn-icon text-secondary" title="Imprimir Etiqueta" 
+                        data-action="download-order-label"
+                        data-product-name="${sanitizeHTML(row[2])}"
+                        data-product-sku="${sanitizeHTML(row[3])}"
+                        data-quantity="${sanitizeHTML(row[4])}"
+                        data-customer-name="${sanitizeHTML(cliente)}"
+                        data-channel="${sanitizeHTML(row[5])}"
+                        data-date="${sanitizeHTML(row[0])}"
+                        data-order-number="${sanitizeHTML(ordenNum)}">
+                            <span class="material-icons">label</span>
+                    </button>
+                    <button class="btn btn-icon text-primary" title="Despachar" data-action="dispatch-order" data-order-index="${index}">
+                        <span class="material-icons">local_shipping</span>
+                    </button>
+                </div>`;
             }
 
             return `<tr class="${rowClass}" data-search="${searchData}">
@@ -986,26 +996,16 @@
             const currentState = state.toUpperCase();
 
             let locationHTML = 'S/U';
-            if (currentState === CONSTANTS.STATUS.PENDING) {
-                const locations = fullData.stockPorUbicacion.get(idProducto);
-                if (locations && locations.size > 0) {
-                    const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
-                    if (sortedLocations.length > 0) {
-                        locationHTML = sortedLocations[0][0];
-                    }
+            const locations = fullData.stockPorUbicacion.get(idProducto);
+            if (locations && locations.size > 0) {
+                const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
+                if (sortedLocations.length > 0) {
+                    locationHTML = sortedLocations[0][0];
                 }
             }
 
-            const stageConfig = {
-                [CONSTANTS.STATUS.PENDING]: { verb: 'Pickear', class: 'btn-success' },
-                [CONSTANTS.STATUS.PICKED]: { verb: 'Empaquetar', class: 'btn-dark' },
-                [CONSTANTS.STATUS.PACKAGED]: { verb: 'Despachar', class: 'btn-primary' },
-            };
-
-            let buttonHTML = `<button class="btn btn-sm btn-secondary" disabled>${sanitizeHTML(currentState)}</button>`;
-            if (stageConfig[currentState]) {
-                buttonHTML = `<button class="btn btn-sm ${stageConfig[currentState].class}" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">${stageConfig[currentState].verb}</button>`;
-            }
+            // MODIFICADO: Se simplifica la lógica del botón, ya que siempre será para "Pickear" en esta vista.
+            const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
 
             return `
                 <tr>
@@ -1291,7 +1291,8 @@
             finally { showLoading(false); }
         }
         function generateVirtualTasks() {
-            const processableStates = [CONSTANTS.STATUS.PENDING, CONSTANTS.STATUS.PICKED, CONSTANTS.STATUS.PACKAGED];
+            // MODIFICADO: Solo se generan tareas para órdenes en estado PENDIENTE.
+            const processableStates = [CONSTANTS.STATUS.PENDING];
             const processableOrders = (fullData.ordenes || []).filter(o => o[6] && processableStates.includes(o[6].toUpperCase()));
             const tasksMap = new Map();
             processableOrders.forEach(order => {
@@ -1309,26 +1310,16 @@
             });
             virtualTasks = Array.from(tasksMap.values()).map(task => ({...task, clientes: Array.from(task.clientes)}));
         }
+        
+        // MODIFICADO: Se simplifica la función, ya que solo se llamará para el estado PENDIENTE.
         function handleStageClick(productId, currentStage) {
             if (currentStage.toUpperCase() === CONSTANTS.STATUS.PENDING) {
                 showPickingModal(productId);
-            } else {
-                processSimpleStage(productId, currentStage);
             }
         }
-        async function processSimpleStage(productId, currentStage) {
-            const stageTransitions = { [CONSTANTS.STATUS.PICKED]: CONSTANTS.STATUS.PACKAGED, [CONSTANTS.STATUS.PACKAGED]: CONSTANTS.STATUS.SHIPPED };
-            const nextStage = stageTransitions[currentStage.toUpperCase()];
-            const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === currentStage.toUpperCase());
-            if (!task) return;
-            const orderIdsToUpdate = task.orders.map(o => o.idVenta);
-            showLoading(true, `Actualizando a ${nextStage}...`);
-            try {
-                await updateOrderStatus(orderIdsToUpdate, nextStage);
-                await loadInitialData();
-            } catch (err) { handleApiError(err); } 
-            finally { showLoading(false); }
-        }
+
+        // MODIFICADO: La función processSimpleStage ya no es necesaria y se elimina.
+        
         async function updateOrderStatus(orderIds, newStatus) {
             if (orderIds.length === 0) return;
             const updates = (fullData.ordenes || []).map((order, index) => {
@@ -2048,6 +2039,31 @@
                 showLoading(false);
             }
         }
+        
+        // N U E V A   F U N C I Ó N
+        // Se añade una función para manejar el despacho de una orden.
+        async function dispatchOrder(originalIndex) {
+            const order = fullData.ordenes[originalIndex];
+            if (!order) return alert('Error: No se encontró la orden para despachar.');
+            
+            showLoading(true, 'Despachando orden...');
+            const range = `${CONSTANTS.SHEET_NAMES.ORDERS}!G${Number(originalIndex) + 2}`;
+            
+            try {
+                 await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: range,
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [[CONSTANTS.STATUS.SHIPPED]] }
+                });
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
 
         function filterTable(tableId, filters) {
             const table = document.getElementById(tableId);
@@ -2161,6 +2177,7 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
+            // MODIFICADO: Se añade la nueva acción 'dispatch-order'
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2203,6 +2220,7 @@
                 'show-manual-order-modal': showManualOrderModal,
                 'save-manual-order': saveManualOrder,
                 'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
+                'dispatch-order': () => dispatchOrder(parseInt(data.orderIndex, 10)),
             };
             if (actionMap[action]) actionMap[action]();
         }
