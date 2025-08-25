@@ -545,9 +545,6 @@
                         <button class="btn btn-secondary" data-action="download-tasks-pdf">
                             <span class="material-icons align-middle me-1">picture_as_pdf</span> Descargar Lista (PDF)
                         </button>
-                        <button class="btn btn-success" data-action="bulk-pick-tasks">
-                            <span class="material-icons align-middle me-1">done_all</span> Picking Masivo
-                        </button>
                         <button class="btn btn-primary btn-lg" data-action="generate-tasks">
                             <span class="material-icons align-middle me-1">play_for_work</span> Generar Tareas
                         </button>
@@ -725,13 +722,15 @@
                 </button>`;
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
+            // CORREGIDO: Se implementa un método más robusto para obtener el índice original de cada fila,
+            // garantizando que las acciones individuales funcionen correctamente después de filtrar.
             const visibleOrdersHTML = (fullData.ordenes || [])
-                .map((order, index) => ({ order, originalIndex: index }))
+                .map((order, index) => ({ order, originalIndex: index })) // Empaqueta la orden con su índice original
                 .filter(item => {
                     const estado = (item.order[6] || '').toUpperCase();
                     return estado === CONSTANTS.STATUS.PENDING || estado === CONSTANTS.STATUS.PICKED;
                 })
-                .map(item => getOrderRowHTML(item.order, item.originalIndex))
+                .map(item => getOrderRowHTML(item.order, item.originalIndex)) // Pasa la orden y su índice original
                 .join('');
 
             container.innerHTML = `
@@ -919,18 +918,6 @@
             document.querySelectorAll('.view').forEach(v => v.innerHTML = '');
         }
 
-        function getBestLocationForProduct(productId) {
-            const locations = fullData.stockPorUbicacion.get(productId);
-            if (!locations || locations.size === 0) return null;
-            
-            const sortedLocations = [...locations.entries()]
-                .filter(([, stock]) => stock > 0)
-                .sort((a, b) => b[1] - a[1]); 
-
-            return sortedLocations.length > 0 ? sortedLocations[0][0] : null;
-        }
-
-
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -1031,7 +1018,14 @@
             const { idProducto, nombre, totalQuantity, state, clientes } = task;
             const currentState = state.toUpperCase();
 
-            const locationHTML = getBestLocationForProduct(idProducto) || 'S/U';
+            let locationHTML = 'S/U';
+            const locations = fullData.stockPorUbicacion.get(idProducto);
+            if (locations && locations.size > 0) {
+                const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
+                if (sortedLocations.length > 0) {
+                    locationHTML = sortedLocations[0][0];
+                }
+            }
             
             const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
 
@@ -2280,7 +2274,6 @@
                 'bulk-print-labels': bulkPrintLabels,
                 'bulk-dispatch': bulkDispatch,
                 'bulk-generate-remito': bulkGenerateRemito,
-                'bulk-pick-tasks': bulkPickTasks,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2636,7 +2629,13 @@
             const tableRows = [];
 
             pendingTasks.forEach((task, index) => {
-                const bestLocation = getBestLocationForProduct(task.idProducto) || "S/U";
+                const locations = fullData.stockPorUbicacion.get(task.idProducto);
+                let bestLocation = "S/U";
+                if (locations && locations.size > 0) {
+                    const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
+                    if (sortedLocations.length > 0) bestLocation = sortedLocations[0][0];
+                }
+
                 const taskData = [
                     index + 1,
                     task.idProducto,
