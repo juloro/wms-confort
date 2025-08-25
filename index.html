@@ -710,7 +710,6 @@
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
-            // MODIFICADO: Se añade el botón de Remito masivo.
             const massActionsHTML = `
                 <button class="btn btn-secondary" data-action="bulk-generate-remito" title="Generar remito para todas las órdenes visibles en estado PICKEADO">
                     <span class="material-icons align-middle me-1">receipt_long</span> Remito (Filtro)
@@ -785,8 +784,13 @@
 
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
+            // MODIFICADO: Se añaden las filas para las estanterías F130 y F140.
             const mapLayout = [
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
+                
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F140/144', prefix: 'F', start: 140, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F130/134', prefix: 'F', start: 130, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
@@ -2219,7 +2223,6 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
-            // MODIFICADO: Se añade la nueva acción 'bulk-generate-remito'.
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2937,84 +2940,6 @@
 
             const now = new Date();
             const fileName = `Etiquetas_Masivas_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
-            doc.save(fileName);
-        }
-
-        // N U E V A   F U N C I Ó N
-        function bulkGenerateRemito() {
-            const tableBody = document.getElementById('orders-table');
-            if (!tableBody) return;
-
-            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
-            const ordersForRemito = [];
-
-            visibleRows.forEach(row => {
-                const orderIndex = parseInt(row.dataset.orderIndex, 10);
-                const order = fullData.ordenes[orderIndex];
-                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
-                    ordersForRemito.push(order);
-                }
-            });
-
-            if (ordersForRemito.length === 0) {
-                return alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para generar un remito.');
-            }
-
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            doc.setFontSize(20);
-            doc.setFont('helvetica', 'bold');
-            doc.text("REMITO", 105, 20, { align: 'center' });
-
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`Fecha de Emisión: ${getTimestamp()}`, 20, 30);
-
-            doc.setFont('helvetica', 'bold');
-            doc.text("Remitente:", 20, 40);
-            doc.setFont('helvetica', 'normal');
-            doc.text("CONFORT ANVE", 20, 45);
-            doc.text("CENTRO INDUSTRIAL PANAMERICANA 36, GUAYAQUIL 3100", 20, 50);
-            doc.text("TORTUGUITAS, BUENOS AIRES (CP 1667)", 20, 55);
-
-            const tableColumn = ['ID Venta', 'Cliente', 'Producto', 'Cantidad'];
-            const tableRows = [];
-            ordersForRemito.forEach(order => {
-                const rowData = [
-                    order[1], 
-                    order[7] || 'N/A', 
-                    `${order[3]} - ${order[2]}`, 
-                    order[4]
-                ];
-                tableRows.push(rowData);
-            });
-
-            doc.autoTable({
-                head: [tableColumn],
-                body: tableRows,
-                startY: 65,
-                theme: 'striped',
-                headStyles: { fillColor: [60, 60, 60] }
-            });
-
-            const finalY = doc.autoTable.previous.finalY;
-            const legend = "TODOS LOS ARTÍCULOS FUERON REVISADOS Y SE ENCUENTRAN EN BUENAS CONDICIONES DE EMBALAJE Y FUNCIONAMIENTO, SIN GOLPES NI ROTURAS";
-            const splitLegend = doc.splitTextToSize(legend, 180);
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.text(splitLegend, 15, finalY + 15);
-            
-            const pageCount = doc.internal.getNumberOfPages();
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            for (var i = 1; i <= pageCount; i++) {
-                doc.setPage(i);
-                doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
-            }
-
-            const now = new Date();
-            const fileName = `Remito_Masivo_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
         }
 
