@@ -682,7 +682,6 @@
         function renderOrdersView() {
             const container = DOM.views.ordenes;
 
-            // MODIFICADO: Se filtra para contar solo órdenes activas (no despachadas ni canceladas) por canal.
             const ordersByChannel = (fullData.ordenes || [])
                 .filter(o => {
                     const estado = (o[6] || '').toUpperCase();
@@ -710,7 +709,15 @@
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             
+            // MODIFICADO: Se añaden los botones de acciones masivas
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
+            const massActionsHTML = `
+                <button class="btn btn-info" data-action="bulk-print-labels" title="Imprimir etiquetas para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">label</span> Imprimir (Filtro)
+                </button>
+                <button class="btn btn-success" data-action="bulk-dispatch" title="Despachar todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">local_shipping</span> Despacho (Filtro)
+                </button>`;
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
             const visibleOrdersHTML = (fullData.ordenes || [])
@@ -723,6 +730,7 @@
                 <h2 class="mb-0">Órdenes</h2>
                 <div class="btn-group">
                     ${incidentButtonHTML}
+                    ${massActionsHTML}
                     ${newOrderButtonHTML}
                 </div>
             </div>
@@ -928,6 +936,7 @@
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
         
+        // MODIFICADO: Se añade 'data-order-index' a la fila <tr> para facilitar la recolección de datos en acciones masivas.
         function getOrderRowHTML(row, index) {
             const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
@@ -969,7 +978,7 @@
                 </div>`;
             }
 
-            return `<tr class="${rowClass}" data-search="${searchData}">
+            return `<tr class="${rowClass}" data-search="${searchData}" data-order-index="${index}">
                 <td>${sanitizeHTML(row[0])}</td>
                 <td>
                     <div>${sanitizeHTML(row[1])}</div>
@@ -2060,6 +2069,41 @@
             }
         }
 
+        async function bulkDispatch() {
+            if (!confirm('¿Está seguro de que desea despachar masivamente todas las órdenes visibles en estado "PICKEADO"?')) return;
+
+            const tableBody = document.getElementById('orders-table');
+            if (!tableBody) return;
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+            const updates = [];
+
+            visibleRows.forEach(row => {
+                const orderIndex = parseInt(row.dataset.orderIndex, 10);
+                const order = fullData.ordenes[orderIndex];
+                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
+                    updates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${orderIndex + 2}`,
+                        values: [[CONSTANTS.STATUS.SHIPPED]]
+                    });
+                }
+            });
+
+            if (updates.length === 0) {
+                alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para despachar.');
+                return;
+            }
+
+            showLoading(true, `Despachando ${updates.length} órdenes...`);
+            try {
+                await batchUpdateSheet(updates);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
 
         function filterTable(tableId, filters) {
             const table = document.getElementById(tableId);
@@ -2173,6 +2217,7 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
+            // MODIFICADO: Se añaden las nuevas acciones masivas.
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2216,6 +2261,8 @@
                 'save-manual-order': saveManualOrder,
                 'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
                 'dispatch-order': () => dispatchOrder(parseInt(data.orderIndex, 10)),
+                'bulk-print-labels': bulkPrintLabels,
+                'bulk-dispatch': bulkDispatch,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2783,78 +2830,111 @@
             doc.save(fileName);
         }
 
-        function downloadOrderLabel(data) {
-            const { jsPDF } = window.jspdf;
-            // Dimensiones en mm: 4cm = 40mm, 6cm = 60mm
-            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
-
+        function drawSingleLabel(doc, data, current, total) {
             const margin = 3;
             const maxWidth = 40 - (margin * 2);
             const centerX = 20;
+            let y = margin + 5;
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
+            doc.text(productNameLines, centerX, y, { align: 'center' });
+            y += (productNameLines.length * 3.5);
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${data.productSku}`, centerX, y, { align: 'center' });
+            y += 4;
+            
+            const quantityText = `${current} de ${total}`;
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text(quantityText, centerX, y, { align: 'center' });
+            y += 5;
+
+            doc.setLineWidth(0.2);
+            doc.line(margin, y, 40 - margin, y);
+            y += 5;
+
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
+            doc.text(customerNameLines, centerX, y, { align: 'center' });
+            y += (customerNameLines.length * 3.5) + 1;
+
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(data.channel, centerX, y, { align: 'center' });
+            y += 5;
+
+            doc.line(margin, y, 40 - margin, y);
+            y += 5;
+
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.text(data.date, centerX, y, { align: 'center' });
+            y += 4;
+
+            if (data.orderNumber) {
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text(data.orderNumber, centerX, y, { align: 'center' });
+            }
+        }
+
+        function downloadOrderLabel(data) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
             const totalQuantity = parseInt(data.quantity, 10) || 1;
 
             for (let i = 1; i <= totalQuantity; i++) {
-                if (i > 1) {
-                    doc.addPage();
-                }
-
-                let y = margin + 5;
-
-                // --- Bloque 1: Producto ---
-                doc.setFontSize(9); // Achicar fuente del nombre del producto
-                doc.setFont('helvetica', 'bold');
-                const productNameLines = doc.splitTextToSize(data.productName, maxWidth);
-                doc.text(productNameLines, centerX, y, { align: 'center' });
-                y += (productNameLines.length * 3.5); // Ajustar espaciado
-
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'normal');
-                doc.text(`${data.productSku}`, centerX, y, { align: 'center' }); // Se quita "SKU: "
-                y += 4;
-                
-                // Cantidad (1 de 1)
-                const quantityText = `${i} de ${totalQuantity}`;
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'bold');
-                doc.text(quantityText, centerX, y, { align: 'center' });
-                y += 5;
-
-                // --- Separador ---
-                doc.setLineWidth(0.2);
-                doc.line(margin, y, 40 - margin, y);
-                y += 5;
-
-                // --- Bloque 2: Cliente ---
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'bold');
-                const customerNameLines = doc.splitTextToSize(data.customerName, maxWidth);
-                doc.text(customerNameLines, centerX, y, { align: 'center' });
-                y += (customerNameLines.length * 3.5) + 1;
-
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'normal');
-                doc.text(data.channel, centerX, y, { align: 'center' });
-                y += 5;
-
-                // --- Separador ---
-                doc.line(margin, y, 40 - margin, y);
-                y += 5;
-
-                // --- Bloque 3: Orden ---
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'normal');
-                doc.text(data.date, centerX, y, { align: 'center' });
-                y += 4;
-
-                if (data.orderNumber) {
-                    doc.setFontSize(9); // Achicar fuente
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(data.orderNumber, centerX, y, { align: 'center' });
-                }
-                // No se agrega más espacio para eliminar el pie
+                if (i > 1) doc.addPage();
+                drawSingleLabel(doc, data, i, totalQuantity);
             }
 
             const fileName = `Etiqueta_${data.productSku}_${data.customerName.replace(/ /g,"_")}.pdf`;
+            doc.save(fileName);
+        }
+
+        // N U E V A   F U N C I Ó N
+        function bulkPrintLabels() {
+            const tableBody = document.getElementById('orders-table');
+            if (!tableBody) return;
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+            const ordersToPrint = [];
+
+            visibleRows.forEach(row => {
+                const orderIndex = parseInt(row.dataset.orderIndex, 10);
+                const order = fullData.ordenes[orderIndex];
+                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
+                    ordersToPrint.push({
+                        productName: order[2], productSku: order[3], quantity: order[4],
+                        customerName: order[7] || '', channel: order[5], date: order[0], orderNumber: order[8] || ''
+                    });
+                }
+            });
+
+            if (ordersToPrint.length === 0) {
+                return alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para imprimir etiquetas.');
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [40, 60] });
+            let isFirstLabel = true;
+
+            ordersToPrint.forEach(orderData => {
+                const totalQuantity = parseInt(orderData.quantity, 10) || 1;
+                for (let i = 1; i <= totalQuantity; i++) {
+                    if (!isFirstLabel) doc.addPage();
+                    drawSingleLabel(doc, orderData, i, totalQuantity);
+                    isFirstLabel = false;
+                }
+            });
+
+            const now = new Date();
+            const fileName = `Etiquetas_Masivas_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
         }
 
