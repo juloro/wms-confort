@@ -709,9 +709,12 @@
             let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
             const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             
-            // MODIFICADO: Se añaden los botones de acciones masivas
             const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
+            // MODIFICADO: Se añade el botón de Remito masivo.
             const massActionsHTML = `
+                <button class="btn btn-secondary" data-action="bulk-generate-remito" title="Generar remito para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">receipt_long</span> Remito (Filtro)
+                </button>
                 <button class="btn btn-info" data-action="bulk-print-labels" title="Imprimir etiquetas para todas las órdenes visibles en estado PICKEADO">
                     <span class="material-icons align-middle me-1">label</span> Imprimir (Filtro)
                 </button>
@@ -936,7 +939,6 @@
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
         
-        // MODIFICADO: Se añade 'data-order-index' a la fila <tr> para facilitar la recolección de datos en acciones masivas.
         function getOrderRowHTML(row, index) {
             const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
@@ -2217,7 +2219,7 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
-            // MODIFICADO: Se añaden las nuevas acciones masivas.
+            // MODIFICADO: Se añade la nueva acción 'bulk-generate-remito'.
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2263,6 +2265,7 @@
                 'dispatch-order': () => dispatchOrder(parseInt(data.orderIndex, 10)),
                 'bulk-print-labels': bulkPrintLabels,
                 'bulk-dispatch': bulkDispatch,
+                'bulk-generate-remito': bulkGenerateRemito,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2897,7 +2900,6 @@
             doc.save(fileName);
         }
 
-        // N U E V A   F U N C I Ó N
         function bulkPrintLabels() {
             const tableBody = document.getElementById('orders-table');
             if (!tableBody) return;
@@ -2935,6 +2937,84 @@
 
             const now = new Date();
             const fileName = `Etiquetas_Masivas_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
+            doc.save(fileName);
+        }
+
+        // N U E V A   F U N C I Ó N
+        function bulkGenerateRemito() {
+            const tableBody = document.getElementById('orders-table');
+            if (!tableBody) return;
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+            const ordersForRemito = [];
+
+            visibleRows.forEach(row => {
+                const orderIndex = parseInt(row.dataset.orderIndex, 10);
+                const order = fullData.ordenes[orderIndex];
+                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
+                    ordersForRemito.push(order);
+                }
+            });
+
+            if (ordersForRemito.length === 0) {
+                return alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para generar un remito.');
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text("REMITO", 105, 20, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Fecha de Emisión: ${getTimestamp()}`, 20, 30);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text("Remitente:", 20, 40);
+            doc.setFont('helvetica', 'normal');
+            doc.text("CONFORT ANVE", 20, 45);
+            doc.text("CENTRO INDUSTRIAL PANAMERICANA 36, GUAYAQUIL 3100", 20, 50);
+            doc.text("TORTUGUITAS, BUENOS AIRES (CP 1667)", 20, 55);
+
+            const tableColumn = ['ID Venta', 'Cliente', 'Producto', 'Cantidad'];
+            const tableRows = [];
+            ordersForRemito.forEach(order => {
+                const rowData = [
+                    order[1], 
+                    order[7] || 'N/A', 
+                    `${order[3]} - ${order[2]}`, 
+                    order[4]
+                ];
+                tableRows.push(rowData);
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 65,
+                theme: 'striped',
+                headStyles: { fillColor: [60, 60, 60] }
+            });
+
+            const finalY = doc.autoTable.previous.finalY;
+            const legend = "TODOS LOS ARTÍCULOS FUERON REVISADOS Y SE ENCUENTRAN EN BUENAS CONDICIONES DE EMBALAJE Y FUNCIONAMIENTO, SIN GOLPES NI ROTURAS";
+            const splitLegend = doc.splitTextToSize(legend, 180);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text(splitLegend, 15, finalY + 15);
+            
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            for (var i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+            }
+
+            const now = new Date();
+            const fileName = `Remito_Masivo_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
         }
 
