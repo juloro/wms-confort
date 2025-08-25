@@ -722,9 +722,15 @@
                 </button>`;
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
+            // CORREGIDO: Se implementa un método más robusto para obtener el índice original de cada fila,
+            // garantizando que las acciones individuales funcionen correctamente después de filtrar.
             const visibleOrdersHTML = (fullData.ordenes || [])
-                .filter(o => o[6] && (o[6].toUpperCase() === CONSTANTS.STATUS.PENDING || o[6].toUpperCase() === CONSTANTS.STATUS.PICKED))
-                .map(row => getOrderRowHTML(row, fullData.ordenes.indexOf(row)))
+                .map((order, index) => ({ order, originalIndex: index })) // Empaqueta la orden con su índice original
+                .filter(item => {
+                    const estado = (item.order[6] || '').toUpperCase();
+                    return estado === CONSTANTS.STATUS.PENDING || estado === CONSTANTS.STATUS.PICKED;
+                })
+                .map(item => getOrderRowHTML(item.order, item.originalIndex)) // Pasa la orden y su índice original
                 .join('');
 
             container.innerHTML = `
@@ -784,7 +790,6 @@
 
         function renderLocationsView() {
             const container = DOM.views.ubicaciones;
-            // MODIFICADO: Se añaden las filas para las estanterías F130 y F140.
             const mapLayout = [
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
                 
@@ -2940,6 +2945,86 @@
 
             const now = new Date();
             const fileName = `Etiquetas_Masivas_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
+            doc.save(fileName);
+        }
+
+        function bulkGenerateRemito() {
+            const tableBody = document.getElementById('orders-table');
+            if (!tableBody) return;
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+            const ordersForRemito = [];
+
+            visibleRows.forEach(row => {
+                const orderIndex = parseInt(row.dataset.orderIndex, 10);
+                const order = fullData.ordenes[orderIndex];
+                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
+                    ordersForRemito.push(order);
+                }
+            });
+
+            if (ordersForRemito.length === 0) {
+                return alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para generar un remito.');
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // -- Header --
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text("REMITO", 105, 20, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Fecha de Emisión: ${getTimestamp()}`, 20, 30);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text("Remitente:", 20, 40);
+            doc.setFont('helvetica', 'normal');
+            doc.text("CONFORT ANVE", 20, 45);
+            doc.text("CENTRO INDUSTRIAL PANAMERICANA 36, GUAYAQUIL 3100", 20, 50);
+            doc.text("TORTUGUITAS, BUENOS AIRES (CP 1667)", 20, 55);
+
+            // -- Table --
+            const tableColumn = ['ID Venta', 'Cliente', 'Producto', 'Cantidad'];
+            const tableRows = [];
+            ordersForRemito.forEach(order => {
+                const rowData = [
+                    order[1], 
+                    order[7] || 'N/A', 
+                    `${order[3]} - ${order[2]}`, 
+                    order[4]
+                ];
+                tableRows.push(rowData);
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 65,
+                theme: 'striped',
+                headStyles: { fillColor: [60, 60, 60] }
+            });
+
+            // -- Footer Legend --
+            const finalY = doc.autoTable.previous.finalY;
+            const legend = "TODOS LOS ARTÍCULOS FUERON REVISADOS Y SE ENCUENTRAN EN BUENAS CONDICIONES DE EMBALAJE Y FUNCIONAMIENTO, SIN GOLPES NI ROTURAS";
+            const splitLegend = doc.splitTextToSize(legend, 180);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text(splitLegend, 15, finalY + 15);
+            
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            for (var i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+            }
+
+            const now = new Date();
+            const fileName = `Remito_Masivo_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
         }
 
