@@ -534,7 +534,6 @@
         function renderTasksView() {
             const container = DOM.views.tareas;
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
-            // MODIFICADO: Se añade el botón de Picking Masivo
             container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Tareas de Picking Pendientes</h2>
                 <div class="d-flex align-items-center">
@@ -920,7 +919,6 @@
             document.querySelectorAll('.view').forEach(v => v.innerHTML = '');
         }
 
-        // N U E V A   F U N C I Ó N   A Y U D A
         function getBestLocationForProduct(productId) {
             const locations = fullData.stockPorUbicacion.get(productId);
             if (!locations || locations.size === 0) return null;
@@ -1033,11 +1031,7 @@
             const { idProducto, nombre, totalQuantity, state, clientes } = task;
             const currentState = state.toUpperCase();
 
-            let locationHTML = 'S/U';
-            const bestLocation = getBestLocationForProduct(idProducto);
-            if (bestLocation) {
-                locationHTML = bestLocation;
-            }
+            const locationHTML = getBestLocationForProduct(idProducto) || 'S/U';
             
             const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
 
