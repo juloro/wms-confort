@@ -1600,37 +1600,44 @@
         function showManualOrderModal() {
             const modalHTML = `
             <div class="modal fade" id="${CONSTANTS.IDS.MANUAL_ORDER_MODAL}" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Registrar Nueva Orden Manual</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="row g-3 mb-3 p-3 bg-light rounded">
+                            <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label for="manualOrderIdVenta" class="form-label">ID Venta / Referencia</label>
+                                    <label for="manualOrderIdVenta" class="form-label">ID Venta</label>
                                     <input type="text" class="form-control" id="manualOrderIdVenta" placeholder="Ej: ML123456789">
                                 </div>
                                 <div class="col-md-6">
                                     <label for="manualOrderCliente" class="form-label">Nombre del Cliente</label>
                                     <input type="text" class="form-control" id="manualOrderCliente" placeholder="Nombre y Apellido">
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-12 autocomplete-container">
+                                    <label for="manualOrderProductName" class="form-label">Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductName" placeholder="Buscar por nombre o ID..." data-action="search-products-for-order">
+                                    <div class="autocomplete-results"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="manualOrderProductId" class="form-label">ID Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductId" readonly>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="manualOrderCantidad" class="form-label">Cantidad</label>
+                                    <input type="number" class="form-control" id="manualOrderCantidad" min="1" value="1">
+                                </div>
+                                <div class="col-md-3">
                                     <label for="manualOrderCanal" class="form-label">Canal</label>
                                     <input type="text" class="form-control" id="manualOrderCanal" placeholder="Ej: MOSTRADOR">
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <label for="manualOrderNroOrden" class="form-label">Nro Orden (Opcional)</label>
                                     <input type="text" class="form-control" id="manualOrderNroOrden">
                                 </div>
                             </div>
-                            <hr>
-                            <h6>Productos</h6>
-                            <div id="manual-order-product-lines" class="mb-2"></div>
-                            <button class="btn btn-outline-success btn-sm" data-action="add-manual-order-line">
-                                <span class="material-icons align-middle" style="font-size: 1.1rem;">add</span> Agregar Producto
-                            </button>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -1640,61 +1647,42 @@
                 </div>
             </div>`;
             createAndShowModal(CONSTANTS.IDS.MANUAL_ORDER_MODAL, modalHTML);
-            addManualOrderLine(); // Automatically add the first line
         }
         async function saveManualOrder() {
             const idVenta = document.getElementById('manualOrderIdVenta').value.trim();
             const cliente = document.getElementById('manualOrderCliente').value.trim();
+            const productName = document.getElementById('manualOrderProductName').value.trim();
+            const productId = document.getElementById('manualOrderProductId').value.trim();
+            const cantidad = document.getElementById('manualOrderCantidad').value;
             const canal = document.getElementById('manualOrderCanal').value.trim();
             const nroOrden = document.getElementById('manualOrderNroOrden').value.trim();
 
-            if (!idVenta || !cliente || !canal) {
-                return alert('Por favor, complete todos los campos de la orden: ID Venta, Cliente y Canal.');
+            if (!idVenta || !cliente || !productId || !canal) {
+                return alert('Por favor, complete todos los campos obligatorios: ID Venta, Cliente, Producto y Canal.');
             }
-
+            const cantidadNum = parseInt(cantidad, 10);
+            if (isNaN(cantidadNum) || cantidadNum <= 0) {
+                return alert('La cantidad debe ser un número mayor a cero.');
+            }
+            
             const timestamp = getTimestamp();
-            const lines = document.querySelectorAll('.manual-order-product-line');
-            const newOrderRows = [];
-            let hasErrors = false;
-
-            for (const line of lines) {
-                const productId = line.querySelector('.product-id-input').value.trim();
-                const productName = line.querySelector('.product-name-input').value.trim();
-                const cantidad = line.querySelector('.product-qty-input').value;
-                
-                if (!productId && !productName && (!cantidad || cantidad === '1' || cantidad === '')) continue;
-
-                const cantidadNum = parseInt(cantidad, 10);
-                if (!productId || !productName || isNaN(cantidadNum) || cantidadNum <= 0) {
-                    alert(`Error en una de las líneas de producto. Verifique que todos los productos estén seleccionados y las cantidades sean válidas.`);
-                    hasErrors = true;
-                    break;
-                }
-                
-                newOrderRows.push([
-                    timestamp,
-                    idVenta,
-                    productName,
-                    productId,
-                    cantidadNum,
-                    canal.toUpperCase(),
-                    '', // Estado
-                    cliente,
-                    nroOrden
-                ]);
-            }
-
-            if (hasErrors) return;
-
-            if (newOrderRows.length === 0) {
-                return alert('No se han agregado productos válidos a la orden.');
-            }
+            const newOrderRow = [
+                timestamp,      // A: Fecha
+                idVenta,        // B: ID Venta
+                productName,    // C: Producto
+                productId,      // D: ID Producto
+                cantidadNum,    // E: Cantidad
+                canal,          // F: Canal
+                '',             // G: Estado (SIN ESTADO por defecto)
+                cliente,        // H: Cliente
+                nroOrden        // I: Nro de Orden
+            ];
             
             activeModals[CONSTANTS.IDS.MANUAL_ORDER_MODAL]?.hide();
             showLoading(true, 'Guardando nueva orden...');
 
             try {
-                await appendToSheet(CONSTANTS.RANGES.ordenes, newOrderRows);
+                await appendToSheet(CONSTANTS.RANGES.ordenes, [newOrderRow]);
                 await loadInitialData();
             } catch (err) {
                 handleApiError(err);
@@ -1702,41 +1690,14 @@
                 showLoading(false);
             }
         }
-        function addManualOrderLine() {
-            const container = document.getElementById('manual-order-product-lines');
-            if (!container) return;
+        function selectProductForManualOrder(productId, productName) {
+            const nameInput = document.getElementById('manualOrderProductName');
+            const idInput = document.getElementById('manualOrderProductId');
+            if (!nameInput || !idInput) return;
 
-            const lineId = `order-line-${Date.now()}`;
-            const lineHTML = `
-                <div class="row g-2 mb-2 align-items-center manual-order-product-line" id="${lineId}">
-                    <div class="col-md-5 autocomplete-container">
-                        <input type="text" class="form-control form-control-sm product-name-input" placeholder="Buscar producto por nombre o ID..." data-action="search-products-for-order">
-                        <div class="autocomplete-results"></div>
-                    </div>
-                    <div class="col-md-3">
-                        <input type="text" class="form-control form-control-sm product-id-input" placeholder="ID Producto" readonly>
-                    </div>
-                    <div class="col-md-2">
-                        <input type="number" class="form-control form-control-sm product-qty-input" min="1" value="1" placeholder="Cant.">
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-outline-danger btn-sm w-100" data-action="remove-element" data-target-id="${lineId}">
-                            <span class="material-icons align-middle" style="font-size: 1rem;">delete</span>
-                        </button>
-                    </div>
-                </div>`;
-            container.insertAdjacentHTML('beforeend', lineHTML);
-        }
-        function selectProductForManualOrder(productId, productName, triggerElement) {
-            const line = triggerElement.closest('.manual-order-product-line');
-            if (!line) return;
-
-            const nameInput = line.querySelector('.product-name-input');
-            const idInput = line.querySelector('.product-id-input');
-            
             nameInput.value = productName;
             idInput.value = productId;
-            
+
             const resultsContainer = nameInput.closest('.autocomplete-container').querySelector('.autocomplete-results');
             resultsContainer.innerHTML = '';
             resultsContainer.style.display = 'none';
@@ -2273,6 +2234,7 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
+            // CORREGIDO: Se ha verificado la sintaxis y los nombres de todas las funciones en este mapa.
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2314,13 +2276,12 @@
                 'download-order-label': () => downloadOrderLabel(data),
                 'show-manual-order-modal': showManualOrderModal,
                 'save-manual-order': saveManualOrder,
-                'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName, target),
+                'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
                 'dispatch-order': () => dispatchOrder(parseInt(data.orderIndex, 10)),
                 'bulk-print-labels': bulkPrintLabels,
                 'bulk-dispatch': bulkDispatch,
                 'bulk-generate-remito': bulkGenerateRemito,
                 'bulk-pick-tasks': bulkPickTasks,
-                'add-manual-order-line': addManualOrderLine,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -3067,6 +3028,81 @@
             const now = new Date();
             const fileName = `Remito_Masivo_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
+        }
+
+        async function bulkPickTasks() {
+            if (virtualTasks.length === 0) {
+                return alert('No hay tareas de picking activas para procesar.');
+            }
+
+            const tasksWithIssues = [];
+            for (const task of virtualTasks) {
+                const bestLocation = getBestLocationForProduct(task.idProducto);
+                const stockAtLocation = bestLocation ? (fullData.stockPorUbicacion.get(String(task.idProducto))?.get(bestLocation) || 0) : 0;
+                
+                if (!bestLocation || stockAtLocation < task.totalQuantity) {
+                    tasksWithIssues.push({
+                        id: task.idProducto,
+                        name: task.nombre,
+                        required: task.totalQuantity,
+                        available: stockAtLocation,
+                        location: bestLocation || 'N/A'
+                    });
+                }
+            }
+
+            if (tasksWithIssues.length > 0) {
+                let errorMessage = 'No se puede realizar el picking masivo. Hay tareas sin stock suficiente:\n\n';
+                tasksWithIssues.forEach(issue => {
+                    errorMessage += `- Producto: ${issue.name} (ID: ${issue.id})\n  Necesario: ${issue.required}, Disponible: ${issue.available} en ${issue.location}\n`;
+                });
+                alert(errorMessage + '\nPor favor, realice los ajustes necesarios o gestione las órdenes individualmente.');
+                return;
+            }
+
+            if (!confirm(`¿Confirma el picking masivo de ${virtualTasks.length} tareas? Se realizarán los movimientos de stock correspondientes.`)) {
+                return;
+            }
+            
+            showLoading(true, `Procesando picking masivo para ${virtualTasks.length} tareas...`);
+            
+            const allMovementRows = [];
+            const allOrderUpdates = [];
+            const timestamp = getTimestamp();
+
+            for (const task of virtualTasks) {
+                const bestLocation = getBestLocationForProduct(task.idProducto);
+                
+                allMovementRows.push([
+                    task.idProducto, 
+                    task.nombre, 
+                    -Math.abs(task.totalQuantity), 
+                    bestLocation, 
+                    CONSTANTS.MOVEMENT_TYPE.PICKING, 
+                    timestamp
+                ]);
+                
+                task.orders.forEach(order => {
+                    allOrderUpdates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${order.index + 2}`,
+                        values: [[CONSTANTS.STATUS.PICKED]]
+                    });
+                });
+            }
+
+            try {
+                if (allMovementRows.length > 0 && allOrderUpdates.length > 0) {
+                     await Promise.all([
+                        appendToSheet(CONSTANTS.RANGES.movimientos, allMovementRows),
+                        batchUpdateSheet(allOrderUpdates)
+                    ]);
+                }
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
         }
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
