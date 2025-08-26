@@ -1,4 +1,2683 @@
-e     doc.rect(data.cell.x + data.cell.width / 2 - 2, data.cell.y + 2, 4, 4);
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS Confort v2.24 (Versión Estable)</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
+        main { flex-grow: 1; }
+        .navbar { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.05); }
+        .view { display: none; }
+        .view.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .card-icon { font-size: 40px; }
+        .dashboard-card-value { font-size: 2.25rem; }
+        .table-responsive { max-height: 75vh; }
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #0d6efd; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .btn-icon { background: none; border: none; padding: 0.25rem 0.5rem; vertical-align: middle; cursor: pointer; }
+        .nav-link { transition: all 0.2s ease-in-out; border-bottom: 3px solid transparent; padding-bottom: 0.5rem; cursor:pointer; }
+        .nav-link:hover, .nav-link.active { border-bottom-color: #0d6efd; color: #0d6efd !important; }
+        .nav-link.active { font-weight: 600; }
+        .badge-estado { font-size: 0.8rem; padding: 0.4em 0.7em; }
+        .badge-estado.PENDIENTE { background-color: #ffc107 !important; color: #343a40 !important; }
+        .badge-estado.PICKEADO { background-color: #198754 !important; }
+        .badge-estado.EMPAQUETADO { background-color: #000000 !important; }
+        .badge-estado.DESPACHADO { background-color: #0d6efd !important; }
+        .badge-estado.INCIDENCIA { background-color: #dc3545 !important; }
+        .badge-estado.CANCELADO { background-color: #6c757d !important; }
+        .footer { padding: 1rem 0; background-color: #e9ecef; color: #6c757d; font-size: 0.9rem; }
+        .autocomplete-container { position: relative; }
+        .autocomplete-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 1055; border: 1px solid rgba(0,0,0,.15); max-height: 200px; overflow-y: auto; background-color: #fff; }
+        .autocomplete-item { display: block; width: 100%; padding: .25rem 1rem; clear: both; font-weight: 400; color: #212529; text-align: inherit; white-space: nowrap; border: 0; }
+        .autocomplete-item:hover { background-color: #e9ecef; cursor: pointer; }
+        th[data-action="sort-products"] { cursor: pointer; user-select: none; }
+        .sort-icon { font-family: 'Material Icons'; font-size: 1.2rem; vertical-align: middle; margin-left: 0.1rem; }
+        
+        #dashboard {
+            background-image: url('https://images4.imagebam.com/5d/52/54/ME14MBK7_o.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding: 1.5rem;
+            border-radius: .5rem;
+        }
+        #dashboard .card {
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(5px);
+        }
+        #dashboard h2, #dashboard h4 {
+            color: white;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+        }
+
+        #auth-container {
+            background-image: url('https://images4.imagebam.com/5d/52/54/ME14MBK7_o.png');
+            background-size: cover;
+            background-position: center;
+        }
+        #auth-container > div {
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+        }
+        #authorize_button {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+        }
+        #authorize_button:hover {
+            box-shadow: 0 7px 14px rgba(0, 0, 0, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        
+        /* --- ESTILOS DEL MAPA DE UBICACIONES --- */
+        .map-container {
+            display: grid;
+            grid-template-columns: 1fr 0.5fr 1fr 1fr 0.5fr 1fr 1fr 0.5fr 1fr 0.5fr 1fr;
+            gap: 5px;
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: .5rem;
+            max-width: 1600px;
+            margin: auto;
+        }
+        .map-block, .map-aisle, .map-header, .map-module {
+            padding: 8px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 4px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .map-header {
+            background-color: #6c757d;
+            color: white;
+        }
+        .map-aisle {
+            background-color: transparent;
+        }
+        .map-block {
+            background-color: #adb5bd;
+            color: #ffffff;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+        .map-block:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .map-module {
+            display: flex;
+            flex-direction: row;
+            gap: 3px;
+            padding: 3px;
+            justify-content: space-around;
+            align-items: stretch;
+        }
+        .map-location-cell {
+            padding: 4px 2px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border-radius: 3px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .map-location-cell:hover {
+            transform: scale(1.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            z-index: 10;
+            position: relative;
+        }
+
+        .map-block-green { background-color: #198754; }
+        .map-block-yellow { background-color: #ffc107; color: #000; }
+        .map-block-red { background-color: #dc3545; }
+        .span-1 { grid-column: span 1; }
+        .span-2 { grid-column: span 2; }
+        .span-9 { grid-column: span 9; }
+
+        .stat-card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075);
+        }
+        .stat-card-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #6c757d;
+        }
+        .stat-card-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="loading-overlay d-none">
+        <div class="text-center">
+            <div class="loader mx-auto"></div>
+            <p id="loadingText" class="mt-2 fw-bold">Cargando...</p>
+        </div>
+    </div>
+
+    <div id="auth-container" class="loading-overlay">
+        <div class="text-center p-5 rounded shadow-lg">
+            <img src="https://images4.imagebam.com/cd/2e/40/ME14MAX8_o.png" alt="Logo WMS Confort" style="height: 112px;" class="mb-4">
+            <p class="mb-4 lead">Por favor, conéctese con su cuenta de Google para continuar.</p>
+            <button id="authorize_button" class="btn btn-primary btn-lg" disabled>
+                <span class="material-icons align-middle me-1">login</span>
+                Conectar con Google
+            </button>
+        </div>
+    </div>
+    
+    <div id="modal-container"></div>
+
+
+    <nav id="mainNavbar" class="navbar navbar-expand-lg navbar-light sticky-top d-none">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <img src="https://images4.imagebam.com/cd/2e/40/ME14MAX8_o.png" alt="Logo WMS Confort" style="height: 75px;">
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link active" data-view="dashboard">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="tareas">Tareas</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="ordenes">Órdenes</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="productos">Productos</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="movimientos">Movimientos</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="ubicaciones">Ubicaciones</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="remitos">Remitos</a></li>
+                    <li class="nav-item"><a class="nav-link" data-view="controles">Controles</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button id="refresh_button" class="btn btn-outline-primary me-2" title="Actualizar Datos">
+                        <span class="material-icons align-middle">refresh</span>
+                    </button>
+                    <button id="signout_button" class="btn btn-outline-secondary">
+                        <span class="material-icons align-middle me-1">logout</span>Desconectar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main id="mainContent" class="container-fluid mt-4 d-none">
+        <div id="dashboard" class="view active"></div>
+        <div id="tareas" class="view"></div>
+        <div id="ordenes" class="view"></div>
+        <div id="productos" class="view"></div>
+        <div id="movimientos" class="view"></div>
+        <div id="ubicaciones" class="view"></div>
+        <div id="remitos" class="view"></div>
+        <div id="controles" class="view"></div>
+    </main>
+
+    <footer id="mainFooter" class="footer mt-auto d-none">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <span>Created by Julian Orozco</span>
+                    <span class="material-icons mx-2" style="font-size: 1rem; vertical-align: middle;">public</span>
+                    <span>Powered by Gemini</span>
+                </div>
+                <div class="text-end">
+                    <span class="text-muted">v5.0 (Estable) - 31/07/2025</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+
+    <script type="text/javascript">
+    (function() {
+        'use strict';
+        
+        // --- 1. CONFIGURACIÓN Y CONSTANTES ---
+        const CONFIG = {
+            CLIENT_ID: '87731666752-orcgmhd0e19r205s9d97c4ak3rkvhb41.apps.googleusercontent.com',
+            SPREADSHEET_ID: '17kxD1P_xRlQEZ6LP7YTJ6GTjpfPEuxVYnU0u3PxahYY',
+            SCOPES: 'https://www.googleapis.com/auth/spreadsheets',
+        };
+
+        const CONSTANTS = {
+            SHEET_NAMES: { PRODUCTS: 'PRODUCTOS', MOVEMENTS: 'MOVIMIENTOS', LOCATIONS: 'UBICACIONES', ORDERS: 'ORDENES', CONTROLS: 'Controles', ENTRADAS_SALIDAS: 'ENTRADAS_SALIDAS'},
+            RANGES: { 
+                productos: 'PRODUCTOS!A2:C', 
+                movimientos: 'MOVIMIENTOS!A2:F', 
+                ubicaciones: 'UBICACIONES!A2:A', 
+                ordenes: 'ORDENES!A2:I', 
+                controles: 'Controles!A2:J',
+                entradasSalidas: 'ENTRADAS_SALIDAS!A2:H'
+            },
+            STATUS: { PENDING: 'PENDIENTE', PICKED: 'PICKEADO', SHIPPED: 'DESPACHADO', INCIDENCE: 'INCIDENCIA', CANCELLED: 'CANCELADO' },
+            MOVEMENT_TYPE: { INGRESS: 'INGRESO', EGRESS: 'EGRESO', ADJUSTMENT: 'AJUSTE', MOVE: 'MOVER', PICKING: 'PICKING' },
+            MOVEMENT_REASONS: {
+                INGRESO: ['COMPRA', 'REPOSICION', 'DEVOLUCION', 'AJUSTE POR INCIDENCIA'],
+                EGRESO: ['VENTA', 'MAYORISTA', 'REPOSICION']
+            },
+            CONTROL_TYPE: { TASK_INCIDENCE: 'INCIDENCIA TAREA', PRODUCT_COUNT: 'CONTROL PRODUCTO', LOCATION_COUNT: 'CONTROL UBICACIÓN' },
+            IDS: { 
+                NEW_PRODUCT_MODAL: 'newProductModal', 
+                EDIT_PRODUCT_MODAL: 'editProductModal', 
+                STOCK_LOCATION_MODAL: 'stockLocationModal', 
+                NEW_MOVEMENT_MODAL: 'newMovementModal', 
+                MOVE_STOCK_MODAL: 'moveStockModal', 
+                REMITO_DETAIL_MODAL: 'remitoDetailModal', 
+                PICKING_MODAL: 'pickingModal', 
+                INCIDENT_MODAL: 'incidentManagementModal', 
+                ADD_ORDER_MODAL: 'addOrderModal', 
+                CHANGE_PRODUCT_MODAL: 'changeProductModal', 
+                LOCATION_CONTROL_MODAL: 'locationControlModal', 
+                PRODUCT_CONTROL_MODAL: 'productControlModal', 
+                LOCATION_GROUP_DETAIL_MODAL: 'locationGroupDetailModal',
+                MANUAL_ORDER_MODAL: 'manualOrderModal'
+            },
+            DEFAULT_LOCATION: 'SIN_UBICACION',
+            DEFAULT_INGRESS_LOCATION: 'Z00',
+            CONTROL_ID_PREFIX: 'CTRL-',
+            PRODUCTOS_SHEET_ID: 898730711, 
+        };
+
+        // --- 2. ESTADO DE LA APLICACIÓN ---
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+        let domReady = false;
+        const initialData = { productos: [], movimientos: [], ubicaciones: [], ordenes: [], controles: [], entradasSalidas: [], stockTotal: new Map(), stockPorUbicacion: new Map() };
+        let fullData = { ...initialData };
+        let originalProducts = [];
+        let processedRemitos = new Map();
+        let activeModals = {};
+        let virtualTasks = [];
+        let validLocations = new Set();
+        let productSort = { by: 'id', ascending: true };
+        let lastControlDates = new Map();
+
+        let DOM = {};
+
+        // --- 3. INICIALIZACIÓN DE GOOGLE API Y AUTENTICACIÓN ---
+        
+        window.gapiLoaded = () => {
+            gapi.load('client', initializeGapiClient);
+        };
+
+        window.gisLoaded = () => {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CONFIG.CLIENT_ID,
+                scope: CONFIG.SCOPES,
+                callback: handleTokenResponse,
+            });
+            gisInited = true;
+            maybeEnableAuthButton();
+        };
+
+        async function initializeGapiClient() {
+            await gapi.client.init({
+                discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+            });
+            gapiInited = true;
+            maybeEnableAuthButton();
+        }
+        
+        function maybeEnableAuthButton() {
+            if (gapiInited && gisInited && domReady) {
+                DOM.authorizeButton.disabled = false;
+            }
+        }
+
+        function handleAuthClick() {
+            tokenClient.requestAccessToken({ prompt: gapi.client.getToken() === null ? 'consent' : '' });
+        }
+
+        async function handleTokenResponse(resp) {
+            if (resp.error) return handleApiError(resp);
+            showUI(true);
+            await loadInitialData();
+        }
+
+        function handleSignoutClick() {
+            const token = gapi.client.getToken();
+            if (token) {
+                google.accounts.oauth2.revoke(token.access_token);
+                gapi.client.setToken('');
+                showUI(false);
+                clearAllData();
+            }
+        }
+
+        // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
+
+        async function loadInitialData() {
+            showLoading(true, 'Actualizando datos...');
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
+                    spreadsheetId: CONFIG.SPREADSHEET_ID, 
+                    ranges: Object.values(CONSTANTS.RANGES) 
+                });
+                const valueRanges = response.result.valueRanges;
+                Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
+                    fullData[name] = valueRanges[index]?.values || [];
+                });
+                
+                originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
+                
+                processAndCalculateStock();
+                processRemitos();
+                processControlDates();
+                sortProducts('id', true); 
+                renderAllViews();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function processAndCalculateStock() {
+            fullData.stockTotal.clear();
+            fullData.stockPorUbicacion.clear();
+            (fullData.movimientos || []).forEach(mov => {
+                const id = String(mov[0] || '').trim();
+                if (!id) return;
+                const ubicacion = String(mov[3] || CONSTANTS.DEFAULT_LOCATION).trim();
+                const cantidad = parseInt(mov[2], 10) || 0;
+                fullData.stockTotal.set(id, (fullData.stockTotal.get(id) || 0) + cantidad);
+                if (!fullData.stockPorUbicacion.has(id)) fullData.stockPorUbicacion.set(id, new Map());
+                const ubicacionesProducto = fullData.stockPorUbicacion.get(id);
+                ubicacionesProducto.set(ubicacion, (ubicacionesProducto.get(ubicacion) || 0) + cantidad);
+            });
+            validLocations = new Set((fullData.ubicaciones || []).flat().map(loc => String(loc || '').trim()).filter(Boolean));
+        }
+        
+        function processRemitos() {
+            processedRemitos.clear();
+            (fullData.entradasSalidas || []).forEach(row => {
+                const [remito, tipo, motivo, origen, fecha, id, nombre, cantidad] = row;
+                const remitoKey = String(remito).trim();
+                if (!remitoKey) return; 
+
+                if (!processedRemitos.has(remitoKey)) {
+                    processedRemitos.set(remitoKey, {
+                        fecha, tipo, motivo, origen,
+                        totalUnidades: 0,
+                        productos: []
+                    });
+                }
+
+                const remitoData = processedRemitos.get(remitoKey);
+                remitoData.totalUnidades += parseInt(cantidad, 10) || 0;
+                remitoData.productos.push({ id, nombre, cantidad });
+            });
+        }
+
+        function processControlDates() {
+            lastControlDates.clear();
+            const locationControls = (fullData.controles || []).filter(c => c[2] === CONSTANTS.CONTROL_TYPE.LOCATION_COUNT);
+
+            for (const control of locationControls) {
+                const dateStr = control[1]; 
+                const location = control[5];
+                if (!dateStr || !location) continue;
+                
+                const [day, month, year] = dateStr.split(' ')[0].split('/');
+                const controlDate = new Date(`${year}-${month}-${day}T${dateStr.split(' ')[1] || '00:00'}:00`);
+                
+                if (isNaN(controlDate.getTime())) continue;
+
+                if (!lastControlDates.has(location) || controlDate > lastControlDates.get(location)) {
+                    lastControlDates.set(location, controlDate);
+                }
+            }
+        }
+        
+        // --- 5. FUNCIONES DE RENDERIZADO DE VISTAS (UI) ---
+        function renderAllViews() {
+            renderDashboardView();
+            renderTasksView();
+            renderProductsView();
+            renderMovementsView();
+            renderRemitosView();
+            renderOrdersView();
+            renderControlsView();
+            renderLocationsView();
+        }
+
+        function renderDashboardView() {
+            const container = DOM.views.dashboard;
+            const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
+            const ordenesConIncidencia = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE).length;
+            const pickingPendientes = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING).length;
+            const paraDespachar = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
+
+            let controlStatus = { green: 0, yellow: 0, red: 0 };
+            const today = new Date();
+            const totalLocations = validLocations.size;
+
+            validLocations.forEach(location => {
+                const controlDate = lastControlDates.get(location);
+                if (controlDate) {
+                    const diffTime = Math.abs(today - controlDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays <= 30) {
+                        controlStatus.green++;
+                    } else if (diffDays <= 59) {
+                        controlStatus.yellow++;
+                    } else {
+                        controlStatus.red++;
+                    }
+                } else {
+                    controlStatus.red++;
+                }
+            });
+
+            const greenPercent = totalLocations > 0 ? (controlStatus.green / totalLocations * 100).toFixed(1) : 0;
+            const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
+            const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
+
+            container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
+                <div class="row">
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-danger">report_problem</span><h5 class="card-title mt-2">Órdenes con Incidencia</h5><p class="card-text fw-bold dashboard-card-value">${ordenesConIncidencia}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-warning">pending_actions</span><h5 class="card-title mt-2">Picking Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${pickingPendientes}</p></div></div></div>
+                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-info">local_shipping</span><h5 class="card-title mt-2">Para Despachar</h5><p class="card-text fw-bold dashboard-card-value">${paraDespachar}</p></div></div></div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.5);">
+                <h4 class="mb-3">Estado de Controles de Ubicación</h4>
+                <div class="card">
+                    <div class="card-body">
+                         <div class="row align-items-center">
+                            <div class="col-md-4">
+                                <p class="mb-1"><strong>Reciente (&lt;30d):</strong> ${controlStatus.green} pos. (${greenPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-success" role="progressbar" style="width: ${greenPercent}%" aria-valuenow="${greenPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                             <div class="col-md-4">
+                                <p class="mb-1"><strong>Advertencia (31-59d):</strong> ${controlStatus.yellow} pos. (${yellowPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-warning" role="progressbar" style="width: ${yellowPercent}%" aria-valuenow="${yellowPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                             <div class="col-md-4">
+                                <p class="mb-1"><strong>Vencido (&ge;60d):</strong> ${controlStatus.red} pos. (${redPercent}%)</p>
+                                <div class="progress mb-2" style="height: 20px;"><div class="progress-bar bg-danger" role="progressbar" style="width: ${redPercent}%" aria-valuenow="${redPercent}" aria-valuemin="0" aria-valuemax="100"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+        }
+        function renderTasksView() {
+            const container = DOM.views.tareas;
+            const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
+            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Tareas de Picking Pendientes</h2>
+                <div class="d-flex align-items-center">
+                    <div class="text-center me-3 p-2 bg-light rounded shadow-sm">
+                        <div class="fw-bold fs-4 text-primary">${ordenesSinEstado}</div>
+                        <small class="text-muted">ÓRDENES POR PROCESAR</small>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" data-action="download-tasks-pdf">
+                            <span class="material-icons align-middle me-1">picture_as_pdf</span> Descargar Lista (PDF)
+                        </button>
+                        <button class="btn btn-primary btn-lg" data-action="generate-tasks">
+                            <span class="material-icons align-middle me-1">play_for_work</span> Generar Tareas
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover bg-white rounded shadow-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th><th>ID Producto</th><th>Nombre</th><th>Cliente</th>
+                            <th class="text-end">Cantidad a Pickear</th><th>Ubicación Sugerida</th>
+                            <th class="text-center">Estado</th><th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasks-table-body"></tbody>
+                </table>
+            </div>`;
+            generateVirtualTasks();
+            const tableBody = document.getElementById('tasks-table-body');
+            if(!tableBody) return;
+            if (virtualTasks.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">No hay tareas de picking pendientes.</td></tr>`;
+                return;
+            }
+            tableBody.innerHTML = virtualTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
+        }
+        function renderProductsView() {
+            const container = DOM.views.productos;
+            
+            const totalProducts = (fullData.productos || []).length;
+            let productsWithoutStock = 0;
+            let lowStockProducts = 0;
+            (fullData.productos || []).forEach(p => {
+                const stock = fullData.stockTotal.get(String(p[0] || '')) || 0;
+                if (stock === 0) {
+                    productsWithoutStock++;
+                }
+                if (stock > 0 && stock <= 2) {
+                    lowStockProducts++;
+                }
+            });
+            const lowStockPercentage = totalProducts > 0 ? (lowStockProducts / totalProducts * 100).toFixed(1) : 0;
+
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Productos</h2>
+                <div class="btn-group">
+                    <button class="btn btn-success" data-action="download-products-csv"><span class="material-icons align-middle me-1">file_download</span> Descargar CSV</button>
+                    <button class="btn btn-primary" data-action="show-new-product-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Producto</button>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">TOTAL DE PRODUCTOS</p>
+                        <p class="stat-card-value text-primary mb-0">${totalProducts}</p>
+                    </div></div>
+                </div>
+                 <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">PRODUCTOS SIN STOCK</p>
+                        <p class="stat-card-value text-danger mb-0">${productsWithoutStock}</p>
+                    </div></div>
+                </div>
+                 <div class="col-md-4">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">PRODUCTOS CON BAJO STOCK (%)</p>
+                        <p class="stat-card-value text-warning mb-0">${lowStockPercentage}%</p>
+                    </div></div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
+                <th data-action="sort-products" data-sort-by="id">ID Producto<span class="sort-icon"></span></th>
+                <th data-action="sort-products" data-sort-by="name">Nombre<span class="sort-icon"></span></th>
+                <th>EAN</th>
+                <th class="text-end" data-action="sort-products" data-sort-by="stock">Stock Disponible<span class="sort-icon"></span></th>
+                <th class="text-center">Acciones</th>
+            </tr></thead><tbody id="products-table"></tbody></table></div>`;
+            document.getElementById('products-table').innerHTML = (fullData.productos || []).map((prod) => {
+                const originalIndex = originalProducts.findIndex(p => p[0] === prod[0]);
+                return getProductRowHTML(prod, originalIndex);
+            }).join('');
+            updateSortIcons();
+        }
+        function renderMovementsView() {
+            const container = DOM.views.movimientos;
+            const uniqueTypes = [...new Set((fullData.movimientos || []).map(m => m[4]).filter(Boolean))];
+            const uniqueLocations = [...new Set((fullData.movimientos || []).map(m => m[3]).filter(Boolean))];
+            const typeOptions = uniqueTypes.map(t => `<option value="${sanitizeHTML(t)}">${sanitizeHTML(t)}</option>`).join('');
+            const locationOptions = uniqueLocations.map(l => `<option value="${sanitizeHTML(l)}">${sanitizeHTML(l)}</option>`).join('');
+            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Historial de Movimientos</h2>
+                <div class="btn-group">
+                    <button class="btn btn-primary" data-action="show-new-movement-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Movimiento</button>
+                    <button class="btn btn-secondary" data-action="show-move-stock-modal"><span class="material-icons align-middle me-1">sync_alt</span> Mover Stock</button>
+                </div>
+            </div>
+            <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                <div class="col-md-4"><input type="text" id="movement-search" class="form-control" placeholder="Buscar por ID o Nombre de Producto..."></div>
+                <div class="col-md-3"><input type="date" id="movement-date-filter" class="form-control"></div>
+                <div class="col-md-2"><select id="movement-type-filter" class="form-select"><option value="">Todos los Tipos</option>${typeOptions}</select></div>
+                <div class="col-md-3"><select id="movement-location-filter" class="form-select"><option value="">Todas las Ubicaciones</option>${locationOptions}</select></div>
+            </div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr><th>Fecha y Hora</th><th>ID Producto</th><th>Nombre</th><th class="text-end">Cantidad</th><th>Ubicación</th><th>Tipo</th></tr></thead><tbody id="movements-table"></tbody></table></div>`;
+            document.getElementById('movements-table').innerHTML = (fullData.movimientos || []).slice().reverse().map(getMovementRowHTML).join('');
+        }
+        function renderRemitosView() {
+            const container = DOM.views.remitos;
+            const remitosArray = Array.from(processedRemitos.values());
+            const uniqueTypes = [...new Set(remitosArray.map(r => r.tipo).filter(Boolean))];
+            const uniqueMotivos = [...new Set(remitosArray.map(r => r.motivo).filter(Boolean))];
+            const uniqueOrigenes = [...new Set(remitosArray.map(r => r.origen).filter(Boolean))];
+            const typeOptions = uniqueTypes.map(t => `<option value="${sanitizeHTML(t)}">${sanitizeHTML(t)}</option>`).join('');
+            const motivoOptions = uniqueMotivos.map(m => `<option value="${sanitizeHTML(m)}">${sanitizeHTML(m)}</option>`).join('');
+            const origenOptions = uniqueOrigenes.map(o => `<option value="${sanitizeHTML(o)}">${sanitizeHTML(o)}</option>`).join('');
+
+            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4"><h2>Consulta de Remitos</h2></div>
+            <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                <div class="col-md-3"><label class="form-label">Fecha</label><input type="date" id="remito-date-filter" class="form-control"></div>
+                <div class="col-md-3"><label class="form-label">Tipo</label><select id="remito-type-filter" class="form-select"><option value="">Todos</option>${typeOptions}</select></div>
+                <div class="col-md-3"><label class="form-label">Motivo</label><select id="remito-motivo-filter" class="form-select"><option value="">Todos</option>${motivoOptions}</select></div>
+                <div class="col-md-3"><label class="form-label">Origen/Destino</label><select id="remito-origen-filter" class="form-select"><option value="">Todos</option>${origenOptions}</select></div>
+            </div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
+                <th>Fecha y Hora</th><th>Remito</th><th>Tipo</th><th>Motivo</th><th>Origen/Destino</th>
+                <th class="text-end">Unidades Totales</th><th class="text-center">Detalle</th>
+            </tr></thead><tbody id="remitos-table"></tbody></table></div>`;
+            
+            document.getElementById('remitos-table').innerHTML = Array.from(processedRemitos.entries()).reverse().map(([remitoId, data]) => getRemitoRowHTML(remitoId, data)).join('');
+        }
+        function renderOrdersView() {
+            const container = DOM.views.ordenes;
+
+            const ordersByChannel = (fullData.ordenes || [])
+                .filter(o => {
+                    const estado = (o[6] || '').toUpperCase();
+                    return estado !== CONSTANTS.STATUS.SHIPPED && estado !== CONSTANTS.STATUS.CANCELLED;
+                })
+                .reduce((acc, order) => {
+                    const channel = order[5] || 'SIN CANAL';
+                    acc[channel] = (acc[channel] || 0) + 1;
+                    return acc;
+                }, {});
+
+            const totalActiveOrders = Object.values(ordersByChannel).reduce((sum, count) => sum + count, 0);
+
+            const channelEntries = Object.entries(ordersByChannel).sort((a,b) => b[1] - a[1]);
+            const channelCardsHTML = channelEntries.map(([channel, count]) => `
+                <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1 text-uppercase">${sanitizeHTML(channel)}</p>
+                        <p class="stat-card-value text-secondary mb-0">${count}</p>
+                    </div></div>
+                </div>
+            `).join('');
+
+            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
+            let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
+            const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
+            
+            const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
+            const massActionsHTML = `
+                <button class="btn btn-secondary" data-action="bulk-generate-remito" title="Generar remito para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">receipt_long</span> Remito (Filtro)
+                </button>
+                <button class="btn btn-info" data-action="bulk-print-labels" title="Imprimir etiquetas para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">label</span> Imprimir (Filtro)
+                </button>
+                <button class="btn btn-success" data-action="bulk-dispatch" title="Despachar todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">local_shipping</span> Despacho (Filtro)
+                </button>`;
+            const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
+            
+            // CORREGIDO: Se implementa un método más robusto para obtener el índice original de cada fila,
+            // garantizando que las acciones individuales funcionen correctamente después de filtrar.
+            const visibleOrdersHTML = (fullData.ordenes || [])
+                .map((order, index) => ({ order, originalIndex: index })) // Empaqueta la orden con su índice original
+                .filter(item => {
+                    const estado = (item.order[6] || '').toUpperCase();
+                    return estado === CONSTANTS.STATUS.PENDING || estado === CONSTANTS.STATUS.PICKED;
+                })
+                .map(item => getOrderRowHTML(item.order, item.originalIndex)) // Pasa la orden y su índice original
+                .join('');
+
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Órdenes</h2>
+                <div class="btn-group">
+                    ${incidentButtonHTML}
+                    ${massActionsHTML}
+                    ${newOrderButtonHTML}
+                </div>
+            </div>
+
+            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+                 <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">ÓRDENES ACTIVAS</p>
+                        <p class="stat-card-value text-primary mb-0">${totalActiveOrders}</p>
+                    </div></div>
+                </div>
+                ${channelCardsHTML}
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6"><input type="text" id="order-search" class="form-control" placeholder="Buscar por ID Venta, Cliente, Producto, ID Producto o Nro de Orden..."></div>
+                <div class="col-md-3"><input type="date" id="order-date-filter" class="form-control"></div>
+                <div class="col-md-3"><select id="order-channel-filter" class="form-select"><option value="">Todos los Canales</option>${channelOptions}</select></div>
+            </div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
+                <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th><th class="text-center">Acciones</th></tr>
+            </thead><tbody id="orders-table">${visibleOrdersHTML}</tbody></table>
+            </div>`;
+        }
+        function renderControlsView() {
+            const container = DOM.views.controles;
+            const uniqueLocations = [...new Set((fullData.controles || []).map(c => c[5]).filter(Boolean))];
+            const locationOptions = uniqueLocations.map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Controles de Stock</h2>
+                <div class="btn-group">
+                    <button class="btn btn-primary" data-action="show-location-control-modal">
+                        <span class="material-icons align-middle me-1">location_searching</span> Control por Ubicación
+                    </button>
+                    <button class="btn btn-success" data-action="show-product-control-modal">
+                        <span class="material-icons align-middle me-1">inventory_2</span> Control por Producto
+                    </button>
+                </div>
+            </div>
+            <div class="row g-3 mb-4 bg-white p-3 rounded shadow-sm">
+                <div class="col-md-4"><input type="date" id="control-date-filter" class="form-control"></div>
+                <div class="col-md-4"><input type="text" id="control-product-search" class="form-control" placeholder="Buscar por Producto..."></div>
+                <div class="col-md-4"><input class="form-control" list="control-location-options" id="control-location-search" placeholder="Buscar por Ubicación..."><datalist id="control-location-options">${locationOptions}</datalist></div>
+            </div>
+            <h4 class="mt-4">Historial de Ajustes</h4>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr><th>Fecha</th><th>Tipo</th><th>ID Producto</th><th>Nombre</th><th>Ubicación</th><th class="text-end">Stock Sistema</th><th class="text-end">Stock Físico</th><th class="text-end">Diferencia</th><th>Nota</th></tr></thead><tbody id="controls-table"></tbody></table></div>`;
+            document.getElementById('controls-table').innerHTML = (fullData.controles || []).slice().reverse().map(getControlRowHTML).join('');
+        }
+
+        function renderLocationsView() {
+            const container = DOM.views.ubicaciones;
+            const mapLayout = [
+                { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
+                
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F140/144', prefix: 'F', start: 140, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F130/134', prefix: 'F', start: 130, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+
+                { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
+                { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
+                { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A90/94', prefix: 'A', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B90/94', prefix: 'B', start: 90, count: 5 }, { type: 'block', label: 'C90/94', prefix: 'C', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D90/94', prefix: 'D', start: 90, count: 5 }, { type: 'block', label: 'E90/94', prefix: 'E', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F90/94', prefix: 'F', start: 90, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A80/84', prefix: 'A', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B80/84', prefix: 'B', start: 80, count: 5 }, { type: 'block', label: 'C80/84', prefix: 'C', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D80/84', prefix: 'D', start: 80, count: 5 }, { type: 'block', label: 'E80/84', prefix: 'E', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F80/84', prefix: 'F', start: 80, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A70/74', prefix: 'A', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B70/74', prefix: 'B', start: 70, count: 5 }, { type: 'block', label: 'C70/74', prefix: 'C', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D70/74', prefix: 'D', start: 70, count: 5 }, { type: 'block', label: 'E70/74', prefix: 'E', start: 70, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F70/74', prefix: 'F', start: 70, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A60/64', prefix: 'A', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B60/64', prefix: 'B', start: 60, count: 5 }, { type: 'block', label: 'C60/64', prefix: 'C', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D60/64', prefix: 'D', start: 60, count: 5 }, { type: 'block', label: 'E60/64', prefix: 'E', start: 60, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F60/64', prefix: 'F', start: 60, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A50/54', prefix: 'A', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B50/54', prefix: 'B', start: 50, count: 5 }, { type: 'block', label: 'C50/54', prefix: 'C', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D50/54', prefix: 'D', start: 50, count: 5 }, { type: 'block', label: 'E50/54', prefix: 'E', start: 50, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F50/54', prefix: 'F', start: 50, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A40/44', prefix: 'A', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B40/44', prefix: 'B', start: 40, count: 5 }, { type: 'block', label: 'C40/44', prefix: 'C', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D40/44', prefix: 'D', start: 40, count: 5 }, { type: 'block', label: 'E40/44', prefix: 'E', start: 40, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F40/44', prefix: 'F', start: 40, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'A30/34', prefix: 'A', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B30/34', prefix: 'B', start: 30, count: 5 }, { type: 'block', label: 'C30/34', prefix: 'C', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D30/34', prefix: 'D', start: 30, count: 5 }, { type: 'block', label: 'E30/34', prefix: 'E', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F30/34', prefix: 'F', start: 30, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G30/32', prefix: 'G', start: 30, count: 3 },
+                { type: 'block', label: 'A20/24', prefix: 'A', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B20/24', prefix: 'B', start: 20, count: 5 }, { type: 'block', label: 'C20/24', prefix: 'C', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D20/24', prefix: 'D', start: 20, count: 5 }, { type: 'block', label: 'E20/24', prefix: 'E', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F20/24', prefix: 'F', start: 20, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G20/24', prefix: 'G', start: 20, count: 5 },
+                { type: 'block', label: 'A10/14', prefix: 'A', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B10/14', prefix: 'B', start: 10, count: 5 }, { type: 'block', label: 'C10/14', prefix: 'C', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D10/14', prefix: 'D', start: 10, count: 5 }, { type: 'block', label: 'E10/14', prefix: 'E', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F10/14', prefix: 'F', start: 10, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'G10/14', prefix: 'G', start: 10, count: 5 },
+                { type: 'block', label: 'JAULA00', prefix: 'JAULA', start: 0, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'Z00 PISO', prefix: 'Z', start: 0, count: 1, span: 9 },
+                { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'ZLUCAS', span: 2, count: 1 },
+            ];
+
+            const mapHTML = mapLayout.map(item => {
+                if (item.type === 'header' || item.type === 'aisle') {
+                    return `<div class="map-${item.type} ${item.span ? `span-${item.span}`: ''}">${item.label || ''}</div>`;
+                }
+                
+                const today = new Date();
+
+                if (item.count === 1) {
+                    let locationId;
+                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICE', 'OUTLET'];
+                    if (specialLabels.includes(item.label)) {
+                        locationId = item.label === 'Z00 PISO' ? 'Z00' : item.label;
+                    } else {
+                        locationId = `${item.prefix}${String(item.start).padStart(2, '0')}`;
+                    }
+                    
+                    const controlDate = lastControlDates.get(locationId);
+                    let colorClass = 'map-block-red';
+                    if (controlDate) {
+                        const diffTime = Math.abs(today - controlDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 30) colorClass = 'map-block-green';
+                        else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                    }
+                    return `<div class="map-block ${colorClass} ${item.span ? `span-${item.span}`: ''}" data-action="show-location-group-details" data-locations="${locationId}" data-label="${item.label}">
+                        ${item.label}
+                    </div>`;
+                }
+
+                let locationsHTML = '';
+                for (let i = 0; i < item.count; i++) {
+                    const locationId = `${item.prefix}${String(item.start + i)}`;
+                    const controlDate = lastControlDates.get(locationId);
+                    let colorClass = 'map-block-red';
+                    if (controlDate) {
+                        const diffTime = Math.abs(today - controlDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 30) colorClass = 'map-block-green';
+                        else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                    }
+                    locationsHTML += `<div class="map-location-cell ${colorClass}" data-action="show-location-group-details" data-locations="${locationId}" data-label="${locationId}">
+                        ${locationId}
+                    </div>`;
+                }
+                return `<div class="map-module ${item.span ? `span-${item.span}` : ''}">${locationsHTML}</div>`;
+
+            }).join('');
+
+            container.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="mb-0">Mapa de Ubicaciones</h2>
+                    <div class="d-flex align-items-center">
+                        <span class="badge me-2 map-block-green">Reciente (&lt;30d)</span>
+                        <span class="badge me-2 map-block-yellow">Advertencia (31-59d)</span>
+                        <span class="badge map-block-red">Vencido (&ge;60d)</span>
+                    </div>
+                </div>
+                <div class="map-container">${mapHTML}</div>`;
+        }
+
+        // --- 6. FUNCIONES DE AYUDA Y UTILIDADES ---
+
+        const sanitizeHTML = (val) => {
+            const str = String(val ?? '');
+            const temp = document.createElement('div');
+            temp.textContent = str;
+            return temp.innerHTML;
+        };
+        const getTimestamp = () => new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '');
+        const showLoading = (show, text = 'Cargando...') => {
+            if (!DOM.loadingOverlay) return;
+            DOM.loadingOverlay.style.display = show ? 'flex' : 'none';
+            DOM.loadingText.textContent = text;
+        };
+        const handleApiError = (err) => {
+            console.error("Error detallado:", err);
+            const message = err.result?.error?.message || err.message || 'Error desconocido.';
+            alert(`Error al comunicarse con Google Sheets: ${message}`);
+            showLoading(false);
+        };
+        const createAndShowModal = (id, html) => {
+            DOM.modalContainer.innerHTML += html;
+            const modalElement = document.getElementById(id);
+            if (!modalElement) return;
+            activeModals[id] = new bootstrap.Modal(modalElement);
+            activeModals[id].show();
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                delete activeModals[id];
+                modalElement.remove();
+            }, { once: true });
+        };
+        const appendToSheet = (range, values) => gapi.client.sheets.spreadsheets.values.append({ spreadsheetId: CONFIG.SPREADSHEET_ID, range, valueInputOption: 'USER_ENTERED', resource: { values } });
+        const batchUpdateSheet = (data) => gapi.client.sheets.spreadsheets.values.batchUpdate({ spreadsheetId: CONFIG.SPREADSHEET_ID, resource: { valueInputOption: 'USER_ENTERED', data } });
+        function showUI(isSignedIn) {
+            DOM.authContainer.style.display = isSignedIn ? 'none' : 'flex';
+            DOM.mainNavbar.classList.toggle('d-none', !isSignedIn);
+            DOM.mainContent.classList.toggle('d-none', !isSignedIn);
+            DOM.mainFooter.classList.toggle('d-none', !isSignedIn);
+        }
+        function clearAllData() {
+            fullData = { ...initialData, stockTotal: new Map(), stockPorUbicacion: new Map() };
+            originalProducts = [];
+            validLocations.clear();
+            document.querySelectorAll('.view').forEach(v => v.innerHTML = '');
+        }
+
+        // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
+        function initializeEventListeners() {
+            DOM.authorizeButton.addEventListener('click', handleAuthClick);
+            DOM.signoutButton.addEventListener('click', handleSignoutClick);
+            DOM.refreshButton.addEventListener('click', loadInitialData);
+            document.body.addEventListener('click', handleAction);
+            document.body.addEventListener('input', handleInput);
+            document.body.addEventListener('change', handleChange);
+            DOM.navContainer.addEventListener('click', (e) => {
+                const navLink = e.target.closest('.nav-link');
+                if (navLink) {
+                    e.preventDefault();
+                    const viewId = navLink.dataset.view;
+                    DOM.navContainer.querySelector('.nav-link.active')?.classList.remove('active');
+                    navLink.classList.add('active');
+                    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                    document.getElementById(viewId)?.classList.add('active');
+                }
+            });
+        }
+        
+        function getProductRowHTML(row, index) {
+            const id = sanitizeHTML(row[0]);
+            const nombre = sanitizeHTML(row[1]);
+            const ean = sanitizeHTML(row[2] || '');
+            const stock = fullData.stockTotal.get(String(row[0] || '')) || 0;
+            const searchData = `${id} ${nombre}`.toLowerCase();
+            return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
+        }
+        
+        function getOrderRowHTML(row, index) {
+            const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
+            const estadoUpper = String(row[6] || '').toUpperCase();
+            let rowClass = '';
+            if (estadoUpper === CONSTANTS.STATUS.INCIDENCE) rowClass = 'table-danger';
+            if (estadoUpper === CONSTANTS.STATUS.SHIPPED) rowClass = 'table-success';
+            if (estadoUpper === CONSTANTS.STATUS.CANCELLED) rowClass = 'table-secondary text-muted';
+            
+            const cliente = row[7] || '';
+            const ordenNum = row[8] || '';
+            const searchData = `${row[1] || ''} ${row[2] || ''} ${row[3] || ''} ${cliente} ${ordenNum}`.toLowerCase();
+
+            let ordenSignalHTML = '';
+            if (ordenNum.trim() !== '') {
+                ordenSignalHTML = `<span class="material-icons text-success" style="cursor: help;" title="Orden Nro: ${sanitizeHTML(ordenNum)}">check_circle</span>`;
+            } else {
+                ordenSignalHTML = `<button class="btn btn-icon text-danger p-0" title="Agregar Nro. de Orden" data-action="show-add-order-modal" data-order-index="${index}">
+                    <span class="material-icons">cancel</span>
+                </button>`;
+            }
+
+            let actionButtonHTML = '';
+            if (estadoUpper === CONSTANTS.STATUS.PICKED) {
+                actionButtonHTML = `<div class="btn-group">
+                    <button class="btn btn-icon text-secondary" title="Imprimir Etiqueta" 
+                        data-action="download-order-label"
+                        data-product-name="${sanitizeHTML(row[2])}"
+                        data-product-sku="${sanitizeHTML(row[3])}"
+                        data-quantity="${sanitizeHTML(row[4])}"
+                        data-customer-name="${sanitizeHTML(cliente)}"
+                        data-channel="${sanitizeHTML(row[5])}"
+                        data-date="${sanitizeHTML(row[0])}"
+                        data-order-number="${sanitizeHTML(ordenNum)}">
+                            <span class="material-icons">label</span>
+                    </button>
+                    <button class="btn btn-icon text-primary" title="Despachar" data-action="dispatch-order" data-order-index="${index}">
+                        <span class="material-icons">local_shipping</span>
+                    </button>
+                </div>`;
+            }
+
+            return `<tr class="${rowClass}" data-search="${searchData}" data-order-index="${index}">
+                <td>${sanitizeHTML(row[0])}</td>
+                <td>
+                    <div>${sanitizeHTML(row[1])}</div>
+                    <small class="text-muted">${sanitizeHTML(cliente)}</small>
+                </td>
+                <td>${sanitizeHTML(row[2])}</td>
+                <td>${sanitizeHTML(row[3])}</td>
+                <td>${sanitizeHTML(row[4])}</td>
+                <td>${sanitizeHTML(row[5])}</td>
+                <td class="align-middle"><span class="badge rounded-pill badge-estado ${estado}">${estado}</span></td>
+                <td class="text-center align-middle">${ordenSignalHTML}</td>
+                <td class="text-center align-middle">${actionButtonHTML}</td>
+            </tr>`;
+        }
+        function getMovementRowHTML(row) {
+            const searchData = `${row[0] || ''} ${row[1] || ''}`.toLowerCase();
+            return `<tr data-search="${searchData}"><td>${sanitizeHTML(row[5])}</td><td>${sanitizeHTML(row[0])}</td><td>${sanitizeHTML(row[1])}</td><td class="text-end">${sanitizeHTML(row[2])}</td><td>${sanitizeHTML(row[3])}</td><td>${sanitizeHTML(row[4])}</td></tr>`;
+        }
+        function getControlRowHTML(row) {
+            const diferencia = parseInt(row[8], 10) || 0;
+            const claseDif = diferencia === 0 ? '' : 'text-danger fw-bold';
+            const searchData = `${row[3] || ''} ${row[4] || ''} ${row[5] || ''}`.toLowerCase();
+            return `<tr data-search="${searchData}"><td>${sanitizeHTML(row[1])}</td><td>${sanitizeHTML(row[2])}</td><td>${sanitizeHTML(row[3])}</td><td>${sanitizeHTML(row[4])}</td><td>${sanitizeHTML(row[5])}</td><td class="text-end">${sanitizeHTML(row[6])}</td><td class="text-end">${sanitizeHTML(row[7])}</td><td class="text-end ${claseDif}">${diferencia}</td><td>${sanitizeHTML(row[9] || '')}</td></tr>`;
+        }
+        function getTaskRowHTML(task, index) {
+            const { idProducto, nombre, totalQuantity, state, clientes } = task;
+            const currentState = state.toUpperCase();
+
+            let locationHTML = 'S/U';
+            const locations = fullData.stockPorUbicacion.get(idProducto);
+            if (locations && locations.size > 0) {
+                const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
+                if (sortedLocations.length > 0) {
+                    locationHTML = sortedLocations[0][0];
+                }
+            }
+            
+            const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
+
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${sanitizeHTML(idProducto)}</td>
+                    <td>${sanitizeHTML(nombre)}</td>
+                    <td>${sanitizeHTML(clientes.join(', '))}</td>
+                    <td class="text-end fw-bold">${totalQuantity}</td>
+                    <td>${sanitizeHTML(locationHTML)}</td>
+                    <td class="text-center"><span class="badge rounded-pill badge-estado ${currentState}">${currentState}</span></td>
+                    <td class="text-center">${buttonHTML}</td>
+                </tr>`;
+        }
+        function getRemitoRowHTML(remitoId, data) {
+            const { fecha, tipo, motivo, origen, totalUnidades } = data;
+            return `<tr data-fecha="${fecha.split(' ')[0]}" data-tipo="${tipo}" data-motivo="${motivo}" data-origen="${origen}">
+                <td>${sanitizeHTML(fecha)}</td>
+                <td>${sanitizeHTML(remitoId)}</td>
+                <td><span class="badge ${tipo === 'INGRESO' ? 'bg-success' : 'bg-danger'}">${sanitizeHTML(tipo)}</span></td>
+                <td>${sanitizeHTML(motivo)}</td>
+                <td>${sanitizeHTML(origen)}</td>
+                <td class="text-end fw-bold">${totalUnidades}</td>
+                <td class="text-center">
+                    <button class="btn btn-icon text-primary" title="Ver Detalle" data-action="show-remito-detail" data-remito-id="${sanitizeHTML(remitoId)}">
+                        <span class="material-icons">search</span>
+                    </button>
+                </td>
+            </tr>`;
+        }
+
+        function showLocationGroupDetailsModal(locationsStr, label) {
+            const locations = locationsStr.split(',');
+            const stockInGroup = new Map();
+
+            for (const loc of locations) {
+                fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
+                    if (locationsMap.has(loc)) {
+                        const qty = locationsMap.get(loc);
+                        if(qty > 0) {
+                             const product = fullData.productos.find(p => p[0] === productId);
+                            if (product) {
+                                const currentStock = stockInGroup.get(productId) || { name: product[1], qty: 0 };
+                                currentStock.qty += qty;
+                                stockInGroup.set(productId, currentStock);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            const productRows = [...stockInGroup.entries()]
+                .sort((a,b) => a[1].name.localeCompare(b[1].name))
+                .map(([id, data]) => `
+                <tr><td>${id}</td><td>${sanitizeHTML(data.name)}</td><td class="text-end">${data.qty}</td></tr>`).join('');
+
+            const datesInGroup = locations.map(loc => lastControlDates.get(loc)).filter(Boolean);
+            let lastControlHTML = '<p>No se han registrado controles para esta ubicación o grupo.</p>';
+            if (datesInGroup.length > 0) {
+                const mostRecentDate = new Date(Math.max(...datesInGroup));
+                const diffDays = Math.ceil(Math.abs(new Date() - mostRecentDate) / (1000 * 60 * 60 * 24));
+                lastControlHTML = `<p><strong>Último control:</strong> ${mostRecentDate.toLocaleDateString('es-AR')} (hace ${diffDays} días)</p>`;
+            }
+
+            const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Detalle de Ubicación: ${label}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${lastControlHTML}
+                            <h6>Stock Actual</h6>
+                            <div class="table-responsive" style="max-height: 50vh;">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-light"><tr><th>ID Producto</th><th>Nombre</th><th class="text-end">Cantidad</th></tr></thead>
+                                    <tbody>${productRows || '<tr><td colspan="3" class="text-center">No hay stock en esta ubicación.</td></tr>'}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                         <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            <button type="button" class="btn btn-primary" data-action="download-location-detail-pdf" data-label="${sanitizeHTML(label)}" data-locations="${sanitizeHTML(locationsStr)}">
+                                <span class="material-icons align-middle" style="font-size: 1.1rem;">picture_as_pdf</span>
+                                Descargar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL, modalHTML);
+        }
+
+        function showNewProductModal() {
+            let maxId = (fullData.productos || []).reduce((max, p) => Math.max(max, parseInt(p[0], 10) || 0), 0);
+            const newId = maxId + 1;
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.NEW_PRODUCT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Nuevo Producto</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-3"><label class="form-label">ID Producto</label><input type="text" class="form-control" id="newProductId" value="${newId}" disabled></div><div class="mb-3"><label for="newProductName" class="form-label">Nombre</label><input type="text" class="form-control" id="newProductName" placeholder="Nombre del producto"></div><div class="mb-3"><label for="newProductEan" class="form-label">EAN</label><input type="text" class="form-control" id="newProductEan" placeholder="Código EAN"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" data-action="save-new-product">Guardar Producto</button></div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.NEW_PRODUCT_MODAL, modalHTML);
+        }
+        async function saveNewProduct() {
+            const id = document.getElementById('newProductId').value;
+            const name = document.getElementById('newProductName').value;
+            const ean = document.getElementById('newProductEan').value;
+            if (!name) return alert('El nombre del producto es obligatorio.');
+            activeModals[CONSTANTS.IDS.NEW_PRODUCT_MODAL]?.hide();
+            showLoading(true, 'Creando nuevo producto...');
+            try {
+                await appendToSheet(CONSTANTS.RANGES.productos, [[id, name, ean]]);
+                await loadInitialData();
+            } catch (err) { handleApiError(err); } 
+            finally { showLoading(false); }
+        }
+        function showEditProductModal(productId, originalIndex) {
+            const product = originalProducts[originalIndex];
+            if (!product || product[0] !== productId) return alert('Error: no se encontró el producto para editar.');
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.EDIT_PRODUCT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Editar Producto</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="editProductIndex" value="${originalIndex}"><div class="mb-3"><label class="form-label">ID Producto</label><input type="text" class="form-control" id="editProductId" value="${sanitizeHTML(product[0])}" disabled></div><div class="mb-3"><label for="editProductName" class="form-label">Nombre</label><input type="text" class="form-control" id="editProductName" value="${sanitizeHTML(product[1])}"></div><div class="mb-3"><label for="editProductEan" class="form-label">EAN</label><input type="text" class="form-control" id="editProductEan" value="${sanitizeHTML(product[2] || '')}"></div></div><div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto" data-action="delete-product" data-product-id="${productId}">Eliminar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" data-action="save-product-changes">Guardar Cambios</button>
+            </div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.EDIT_PRODUCT_MODAL, modalHTML);
+        }
+        async function saveProductChanges() {
+            const index = document.getElementById('editProductIndex').value;
+            const newName = document.getElementById('editProductName').value;
+            const newEan = document.getElementById('editProductEan').value;
+            if (!newName) return alert('El nombre no puede estar vacío.');
+            activeModals[CONSTANTS.IDS.EDIT_PRODUCT_MODAL]?.hide();
+            showLoading(true, 'Guardando cambios...');
+            const range = `${CONSTANTS.SHEET_NAMES.PRODUCTS}!B${Number(index) + 2}:C${Number(index) + 2}`;
+            try {
+                await gapi.client.sheets.spreadsheets.values.update({ spreadsheetId: CONFIG.SPREADSHEET_ID, range, valueInputOption: 'USER_ENTERED', resource: { values: [[newName, newEan]] } });
+                await loadInitialData();
+            } catch (err) { handleApiError(err); }
+            finally { showLoading(false); }
+        }
+        async function deleteProduct(productId) {
+            const originalIndex = originalProducts.findIndex(p => p[0] === productId);
+            if (originalIndex === -1) return alert('Error: No se pudo encontrar el producto para eliminar.');
+            const product = originalProducts[originalIndex];
+            if (!confirm(`¿Estás seguro de que deseas eliminar el producto "${product[1]}" (ID: ${productId})? Esta acción no se puede deshacer.`)) return;
+            activeModals[CONSTANTS.IDS.EDIT_PRODUCT_MODAL]?.hide();
+            showLoading(true, 'Eliminando producto...');
+            const request = {
+                requests: [{
+                    deleteDimension: {
+                        range: {
+                            sheetId: CONSTANTS.PRODUCTOS_SHEET_ID,
+                            dimension: "ROWS",
+                            startIndex: Number(originalIndex) + 1,
+                            endIndex: Number(originalIndex) + 2
+                        }
+                    }
+                }]
+            };
+            try {
+                await gapi.client.sheets.spreadsheets.batchUpdate({ spreadsheetId: CONFIG.SPREADSHEET_ID, resource: request });
+                await loadInitialData();
+            } catch (err) { handleApiError(err); } 
+            finally { showLoading(false); }
+        }
+        function showStockLocationModal(productId) {
+            const product = fullData.productos.find(p => p[0] === productId);
+            const locationsMap = fullData.stockPorUbicacion.get(productId);
+            let locationsHTML;
+            if (locationsMap && locationsMap.size > 0) {
+                const locationsList = [...locationsMap.entries()].filter(([, stock]) => stock > 0).map(([location, stock]) => `<li class="list-group-item d-flex justify-content-between align-items-center">${sanitizeHTML(location)}<span class="badge bg-primary rounded-pill">${stock}</span></li>`).join('');
+                locationsHTML = locationsList ? `<ul class="list-group">${locationsList}</ul>` : `<div class="alert alert-warning">No se encontró stock para este producto.</div>`;
+            } else {
+                locationsHTML = `<div class="alert alert-warning">No se encontró stock para este producto.</div>`;
+            }
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.STOCK_LOCATION_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><div><h5 class="modal-title mb-0">Ubicaciones de Stock</h5><small class="text-muted">${sanitizeHTML(product ? product[1] : productId)}</small></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">${locationsHTML}</div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.STOCK_LOCATION_MODAL, modalHTML);
+        }
+        function showNewMovementModal() {
+            const initialReasons = CONSTANTS.MOVEMENT_REASONS.INGRESO.map(r => `<option value="${r}">${r}</option>`).join('');
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.NEW_MOVEMENT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Nuevo Movimiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6"><label for="movementRef" class="form-label">Remito / Referencia</label><input type="text" id="movementRef" class="form-control" placeholder="Nro. de Referencia"></div>
+                    <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, etc."></div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4"><label for="movementType" class="form-label">Tipo</label><select id="movementType" class="form-select"><option value="${CONSTANTS.MOVEMENT_TYPE.INGRESS}" selected>Ingreso</option><option value="${CONSTANTS.MOVEMENT_TYPE.EGRESS}">Egreso</option></select></div>
+                    <div class="col-md-4"><label for="movementReason" class="form-label">Motivo</label><select id="movementReason" class="form-select">${initialReasons}</select></div>
+                    <div class="col-md-4" id="main-location-wrapper"><label for="movementLocation" class="form-label">Ubicación</label><input class="form-control" id="movementLocation" value="${CONSTANTS.DEFAULT_INGRESS_LOCATION}" disabled></div>
+                </div>
+                <hr><h6>Productos</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Línea</button></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" data-action="save-new-movement">Guardar Movimiento</button></div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.NEW_MOVEMENT_MODAL, modalHTML);
+            addNewMovementLine();
+        }
+        async function saveNewMovement() {
+            const remito = document.getElementById('movementRef').value.trim();
+            const origen = document.getElementById('movementOrigin').value.trim();
+            const tipo = document.getElementById('movementType').value;
+            const motivo = document.getElementById('movementReason').value;
+            const headerLocation = document.getElementById('movementLocation')?.value.trim().toUpperCase();
+            if (!motivo || !origen) return alert('Debe completar los campos Motivo y Origen/Destino.');
+            const lines = document.querySelectorAll('.movement-product-line');
+            const movementRows = [];
+            const entradasSalidasRows = [];
+            const timestamp = getTimestamp();
+            let hasErrors = false;
+            for (const line of lines) {
+                const id = line.querySelector('.product-id-input').value;
+                const qty = parseInt(line.querySelector('.product-qty-input').value, 10);
+                if (!id || isNaN(qty) || qty <= 0) continue;
+                const product = fullData.productos.find(p => p[0] === id);
+                if (!product) { alert(`Producto con ID ${id} no encontrado.`); hasErrors = true; break; }
+                let location = headerLocation;
+                if (tipo === CONSTANTS.MOVEMENT_TYPE.EGRESS) {
+                    const locationInput = line.querySelector('.line-location-input');
+                    location = locationInput.value.trim().toUpperCase();
+                    if(!location) { alert(`Debe especificar una ubicación para el producto ${product[1]}.`); hasErrors = true; break; }
+                    if(!validLocations.has(location)) { alert(`Ubicación "${location}" no válida para el producto ${product[1]}.`); hasErrors = true; break; }
+                }
+                if (!location) { alert('La ubicación no puede estar vacía.'); hasErrors = true; break; }
+                const movementQty = tipo === CONSTANTS.MOVEMENT_TYPE.INGRESS ? qty : -Math.abs(qty);
+                movementRows.push([id, product[1], movementQty, location, tipo, timestamp]);
+                entradasSalidasRows.push([remito, tipo, motivo, origen, timestamp, id, product[1], qty]);
+            };
+            if (hasErrors || movementRows.length === 0) return alert('No hay productos válidos para registrar o se encontraron errores.');
+            activeModals[CONSTANTS.IDS.NEW_MOVEMENT_MODAL]?.hide();
+            showLoading(true, 'Guardando movimiento...');
+            try {
+                await Promise.all([
+                    appendToSheet(CONSTANTS.RANGES.movimientos, movementRows),
+                    appendToSheet(CONSTANTS.RANGES.entradasSalidas, entradasSalidasRows)
+                ]);
+                await loadInitialData();
+            } catch(err) { handleApiError(err); } 
+            finally { showLoading(false); }
+        }
+        function addNewMovementLine() {
+             const lineId = `line-${Date.now()}`;
+             const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+             const lineHTML = `<div class="row g-2 mb-2 align-items-center movement-product-line" id="${lineId}">
+                <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" disabled></div>
+                <div class="col-md-4 autocomplete-container"><input type="text" id="product-name-input-${lineId}" class="form-control form-control-sm product-name-input" placeholder="Buscar producto..." data-action="search-products-for-movement"><div class="autocomplete-results list-group shadow-sm"></div></div>
+                <div class="col-md-2"><input type="number" class="form-control form-control-sm product-qty-input" placeholder="Cantidad" min="1"></div>
+                <div class="col-md-3 d-none line-location-wrapper"><input class="form-control form-control-sm line-location-input" list="lineLocationOptions" placeholder="Ubicación"><datalist id="lineLocationOptions">${locationOptions}</datalist></div>
+                <div class="col-md-1"><button class="btn btn-danger btn-sm" data-action="remove-element" data-target-id="${lineId}"><span class="material-icons align-middle" style="font-size: 1rem;">delete</span></button></div>
+            </div>`;
+             document.getElementById('movement-product-lines')?.insertAdjacentHTML('beforeend', lineHTML);
+             const movementTypeSelect = document.getElementById('movementType');
+             if(movementTypeSelect) toggleMovementLocation(movementTypeSelect);
+        }
+        function toggleMovementLocation(selectElement) {
+            const movementType = selectElement.value;
+            const mainLocationWrapper = document.getElementById('main-location-wrapper');
+            const lineLocationWrappers = document.querySelectorAll('.line-location-wrapper');
+            updateMovementReasons(movementType);
+            if (movementType === CONSTANTS.MOVEMENT_TYPE.INGRESS) {
+                mainLocationWrapper.classList.remove('d-none');
+                lineLocationWrappers.forEach(w => w.classList.add('d-none'));
+            } else {
+                mainLocationWrapper.classList.add('d-none');
+                lineLocationWrappers.forEach(w => w.classList.remove('d-none'));
+            }
+        }
+        function updateMovementReasons(movementType) {
+            const reasonSelect = document.getElementById('movementReason');
+            if (!reasonSelect) return;
+            const reasons = CONSTANTS.MOVEMENT_REASONS[movementType.toUpperCase()] || [];
+            reasonSelect.innerHTML = reasons.map(r => `<option value="${r}">${r}</option>`).join('');
+        }
+        async function handleGenerateTasks() {
+            showLoading(true, "Procesando órdenes...");
+            try {
+                const updates = (fullData.ordenes || []).map((order, index) => {
+                    if (!order[6] || order[6].trim() === '') {
+                        return { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`, values: [[CONSTANTS.STATUS.PENDING]] };
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (updates.length > 0) {
+                    await batchUpdateSheet(updates);
+                    await loadInitialData();
+                } else {
+                    alert("No hay nuevas órdenes para procesar.");
+                }
+            } catch (err) { handleApiError(err); } 
+            finally { showLoading(false); }
+        }
+        function generateVirtualTasks() {
+            const processableStates = [CONSTANTS.STATUS.PENDING];
+            const processableOrders = (fullData.ordenes || []).filter(o => o[6] && processableStates.includes(o[6].toUpperCase()));
+            const tasksMap = new Map();
+            processableOrders.forEach(order => {
+                const idProducto = order[3];
+                const estado = order[6].toUpperCase();
+                const cliente = order[7] || 'N/A';
+                const taskKey = `${idProducto}-${estado}`;
+                if (!tasksMap.has(taskKey)) {
+                    tasksMap.set(taskKey, { idProducto: idProducto, nombre: order[2], totalQuantity: 0, orders: [], state: estado, clientes: new Set() });
+                }
+                const task = tasksMap.get(taskKey);
+                task.totalQuantity += parseInt(order[4], 10) || 0;
+                task.clientes.add(cliente);
+                task.orders.push({ idVenta: order[1], cantidad: parseInt(order[4], 10) || 0, index: (fullData.ordenes || []).indexOf(order) });
+            });
+            virtualTasks = Array.from(tasksMap.values()).map(task => ({...task, clientes: Array.from(task.clientes)}));
+        }
+        
+        function handleStageClick(productId, currentStage) {
+            if (currentStage.toUpperCase() === CONSTANTS.STATUS.PENDING) {
+                showPickingModal(productId);
+            }
+        }
+        
+        async function updateOrderStatus(orderIds, newStatus) {
+            if (orderIds.length === 0) return;
+            const updates = (fullData.ordenes || []).map((order, index) => {
+                if (orderIds.includes(order[1])) {
+                    return { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`, values: [[newStatus]] };
+                }
+                return null;
+            }).filter(Boolean);
+            if (updates.length > 0) await batchUpdateSheet(updates);
+        }
+        
+        function showPickingModal(productId) {
+            const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+            if (!task) return alert("No se encontró la tarea de picking.");
+
+            const locationsMap = fullData.stockPorUbicacion.get(productId);
+            let locationInputsHTML = '';
+            let hasStock = false;
+
+            if (locationsMap && locationsMap.size > 0) {
+                const sortedLocations = [...locationsMap.entries()].filter(([, stock]) => stock > 0).sort((a,b) => b[1] - a[1]);
+                if (sortedLocations.length > 0) {
+                    hasStock = true;
+                    locationInputsHTML = sortedLocations.map(([location, stock]) => `
+                        <div class="row g-2 align-items-center mb-2">
+                            <div class="col-4"><strong>${sanitizeHTML(location)}</strong><br><small class="text-muted">Disp: ${stock}</small></div>
+                            <div class="col-5"><input type="number" class="form-control picking-qty-input" data-location="${sanitizeHTML(location)}" data-max-stock="${stock}" min="0" max="${stock}" placeholder="0"></div>
+                            <div class="col-3 text-end"><button class="btn btn-sm btn-outline-danger" data-action="declare-no-stock" data-product-id="${productId}" data-location="${location}" data-stock-sistema="${stock}">Sin Stock</button></div>
+                        </div>`).join('');
+                }
+            }
+
+            let bodyContent;
+            let footerContent;
+
+            if (hasStock) {
+                bodyContent = `<h6>Seleccione Ubicaciones y Cantidades:</h6>
+                               <div id="picking-locations">${locationInputsHTML}</div>
+                               <div class="alert alert-secondary mt-3">Total Pickeado: <span id="total-picked-count" class="fw-bold">0</span> / ${task.totalQuantity}</div>`;
+                footerContent = `<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                 <button type="button" class="btn btn-primary" data-action="confirm-picking" data-product-id="${productId}">Confirmar Picking</button>`;
+            } else {
+                bodyContent = `<div class="alert alert-danger">No hay stock disponible en ninguna ubicación para este producto. El sistema procederá a marcar la orden con una incidencia.</div>`;
+                footerContent = `<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                 <button type="button" class="btn btn-danger" data-action="confirm-out-of-stock" data-product-id="${productId}">Confirmar Falta de Stock</button>`;
+            }
+
+            const modalHTML = `
+                <div class="modal fade" id="${CONSTANTS.IDS.PICKING_MODAL}" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header"><h5 class="modal-title">Realizar Picking</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                            <div class="modal-body">
+                                <p><strong>Producto:</strong> ${sanitizeHTML(task.nombre)} (ID: ${productId})</p>
+                                <p><strong>Cantidad total a pickear:</strong> <span class="fw-bold fs-5 text-primary">${task.totalQuantity}</span></p>
+                                <hr>
+                                ${bodyContent}
+                            </div>
+                            <div class="modal-footer">${footerContent}</div>
+                        </div>
+                    </div>
+                </div>`;
+            createAndShowModal(CONSTANTS.IDS.PICKING_MODAL, modalHTML);
+        }
+
+        async function confirmPicking(productId) {
+            const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+            if (!task) return alert("Error: Tarea no encontrada.");
+            
+            const inputs = document.querySelectorAll('.picking-qty-input');
+            let totalPicked = 0;
+            const movementRows = [];
+            const timestamp = getTimestamp();
+            
+            for (const input of inputs) {
+                const qty = parseInt(input.value, 10) || 0;
+                if (qty > 0) {
+                    const location = input.dataset.location;
+                    const maxStock = parseInt(input.dataset.maxStock, 10);
+                    if (qty > maxStock) return alert(`La cantidad para la ubicación ${location} (${qty}) excede el stock disponible (${maxStock}).`);
+                    totalPicked += qty;
+                    movementRows.push([task.idProducto, task.nombre, -Math.abs(qty), location, CONSTANTS.MOVEMENT_TYPE.PICKING, timestamp]);
+                }
+            }
+
+            if (totalPicked !== task.totalQuantity) {
+                return alert(`La cantidad total pickeada (${totalPicked}) no coincide con la cantidad requerida (${task.totalQuantity}). Por favor, ajuste las cantidades.`);
+            }
+
+            activeModals[CONSTANTS.IDS.PICKING_MODAL]?.hide();
+            showLoading(true, 'Procesando picking...');
+
+            try {
+                const orderIdsToUpdate = task.orders.map(o => o.idVenta);
+                const orderUpdates = (fullData.ordenes || []).map((order, index) => {
+                    if (orderIdsToUpdate.includes(order[1]) && order[3] === productId) {
+                        return { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`, values: [[CONSTANTS.STATUS.PICKED]] };
+                    }
+                    return null;
+                }).filter(Boolean);
+
+                await Promise.all([
+                    appendToSheet(CONSTANTS.RANGES.movimientos, movementRows),
+                    batchUpdateSheet(orderUpdates)
+                ]);
+
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function confirmOutOfStock(productId) {
+            const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+            if (!task) {
+                return alert("Error: Tarea no encontrada para generar incidencia.");
+            }
+
+            activeModals[CONSTANTS.IDS.PICKING_MODAL]?.hide();
+            showLoading(true, 'Generando incidencia por falta de stock...');
+
+            try {
+                const orderIdsToUpdate = task.orders.map(o => o.idVenta);
+                await updateOrderStatus(orderIdsToUpdate, CONSTANTS.STATUS.INCIDENCE);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function declareNoStock(productId, location, stockSistema) {
+            const product = fullData.productos.find(p => p[0] === productId);
+            if (!product) return alert("Error: Producto no encontrado.");
+            
+            if (!confirm(`¿Confirma que no hay stock para "${product[1]}" en la ubicación "${location}"?\n\nEsto ajustará el inventario en esta posición a CERO.`)) return;
+            
+            activeModals[CONSTANTS.IDS.PICKING_MODAL]?.hide();
+            showLoading(true, 'Ajustando stock y validando...');
+
+            const timestamp = getTimestamp();
+            const stockToAdjust = -Math.abs(parseInt(stockSistema, 10));
+
+            const movementRows = [[productId, product[1], stockToAdjust, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp]];
+            const controlRows = [[`${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`, timestamp, CONSTANTS.CONTROL_TYPE.TASK_INCIDENCE, productId, product[1], location, stockSistema, 0, stockToAdjust, '']];
+
+            try {
+                await Promise.all([
+                    appendToSheet(CONSTANTS.RANGES.movimientos, movementRows),
+                    appendToSheet(CONSTANTS.RANGES.controles, controlRows),
+                ]);
+
+                const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+                if (task) {
+                    const newTotalStock = (fullData.stockTotal.get(productId) || 0) + stockToAdjust; 
+                    if (newTotalStock < task.totalQuantity) {
+                        showLoading(true, 'Stock total insuficiente. Generando incidencia en la orden...');
+                        const orderIdsToUpdate = task.orders.map(o => o.idVenta);
+                        const orderUpdates = (fullData.ordenes || []).map((order, index) => {
+                            if (orderIdsToUpdate.includes(order[1]) && order[3] === productId) {
+                                return { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`, values: [[CONSTANTS.STATUS.INCIDENCE]] };
+                            }
+                            return null;
+                        }).filter(Boolean);
+
+                        if (orderUpdates.length > 0) {
+                            await batchUpdateSheet(orderUpdates);
+                        }
+                    }
+                }
+                
+                await loadInitialData();
+
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        function showMoveStockModal() {
+            const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.MOVE_STOCK_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Mover Stock entre Ubicaciones</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6"><label for="moveOrigin" class="form-label fw-bold">Ubicación Origen</label><input class="form-control" id="moveOrigin" list="moveLocationOptions" placeholder="Seleccionar origen..."></div>
+                    <div class="col-md-6"><label for="moveDestination" class="form-label fw-bold">Ubicación Destino</label><input class="form-control" id="moveDestination" list="moveLocationOptions" placeholder="Seleccionar destino..."></div>
+                    <datalist id="moveLocationOptions">${locationOptions}</datalist>
+                </div>
+                <hr><h6>Productos a Mover</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Producto</button></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" data-action="save-move-stock">Confirmar Movimiento</button></div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.MOVE_STOCK_MODAL, modalHTML);
+            addNewMovementLine();
+        }
+        async function saveMoveStock() {
+            const origin = document.getElementById('moveOrigin').value.trim().toUpperCase();
+            const destination = document.getElementById('moveDestination').value.trim().toUpperCase();
+            if (!origin || !destination) return alert('Debe seleccionar una ubicación de origen y una de destino.');
+            if (origin === destination) return alert('La ubicación de origen y destino no pueden ser la misma.');
+            if (!validLocations.has(origin) || !validLocations.has(destination)) return alert('Una o ambas ubicaciones no son válidas.');
+            const lines = document.querySelectorAll('.movement-product-line');
+            const egressRows = [];
+            const ingressRows = [];
+            const timestamp = getTimestamp();
+            let hasErrors = false;
+            for (const line of lines) {
+                const id = line.querySelector('.product-id-input').value;
+                const qty = parseInt(line.querySelector('.product-qty-input').value, 10);
+                if (!id || isNaN(qty) || qty <= 0) continue;
+                const product = fullData.productos.find(p => p[0] === id);
+                if (!product) { alert(`Producto con ID ${id} no encontrado.`); hasErrors = true; break; }
+                const stockAtOrigin = fullData.stockPorUbicacion.get(id)?.get(origin) || 0;
+                if (stockAtOrigin < qty) { alert(`Stock insuficiente para ${product[1]} en la ubicación ${origin}. Disponible: ${stockAtOrigin}.`); hasErrors = true; break; }
+                egressRows.push([id, product[1], -Math.abs(qty), origin, CONSTANTS.MOVEMENT_TYPE.MOVE, timestamp]);
+                ingressRows.push([id, product[1], qty, destination, CONSTANTS.MOVEMENT_TYPE.MOVE, timestamp]);
+            }
+            if (hasErrors || (egressRows.length === 0)) return alert('No hay productos válidos para mover o se encontraron errores.');
+            activeModals[CONSTANTS.IDS.MOVE_STOCK_MODAL]?.hide();
+            showLoading(true, 'Procesando movimiento de stock...');
+            try {
+                await appendToSheet(CONSTANTS.RANGES.movimientos, [...egressRows, ...ingressRows]);
+                await loadInitialData();
+            } catch(err) { handleApiError(err); } 
+            finally { showLoading(false); }
+        }
+        function showRemitoDetailModal(remitoId) {
+            const data = processedRemitos.get(remitoId);
+            if (!data) return alert('No se encontraron los datos para este remito.');
+            const productRows = data.productos.map(p => `<tr>
+                <td>${sanitizeHTML(p.id)}</td>
+                <td>${sanitizeHTML(p.nombre)}</td>
+                <td class="text-end">${sanitizeHTML(p.cantidad)}</td>
+            </tr>`).join('');
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.REMITO_DETAIL_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header">
+                <h5 class="modal-title">Detalle del Remito: ${sanitizeHTML(remitoId)}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div><div class="modal-body">
+                <p><strong>Fecha:</strong> ${data.fecha} | <strong>Tipo:</strong> ${data.tipo} | <strong>Origen/Destino:</strong> ${data.origen}</p>
+                <table class="table"><thead class="table-light"><tr>
+                    <th>ID Producto</th>
+                    <th>Nombre</th>
+                    <th class="text-end">Cantidad</th>
+                </tr></thead><tbody>${productRows}</tbody></table>
+            </div><div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" data-action="download-remito-detail-pdf" data-remito-id="${sanitizeHTML(remitoId)}">
+                    <span class="material-icons align-middle me-1" style="font-size: 1.1rem;">picture_as_pdf</span>
+                    Descargar PDF
+                </button>
+            </div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.REMITO_DETAIL_MODAL, modalHTML);
+        }
+        
+        function showManualOrderModal() {
+            const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.MANUAL_ORDER_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Registrar Nueva Orden Manual</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="manualOrderIdVenta" class="form-label">ID Venta</label>
+                                    <input type="text" class="form-control" id="manualOrderIdVenta" placeholder="Ej: ML123456789">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="manualOrderCliente" class="form-label">Nombre del Cliente</label>
+                                    <input type="text" class="form-control" id="manualOrderCliente" placeholder="Nombre y Apellido">
+                                </div>
+                                <div class="col-md-12 autocomplete-container">
+                                    <label for="manualOrderProductName" class="form-label">Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductName" placeholder="Buscar por nombre o ID..." data-action="search-products-for-order">
+                                    <div class="autocomplete-results"></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="manualOrderProductId" class="form-label">ID Producto</label>
+                                    <input type="text" class="form-control" id="manualOrderProductId" readonly>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="manualOrderCantidad" class="form-label">Cantidad</label>
+                                    <input type="number" class="form-control" id="manualOrderCantidad" min="1" value="1">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="manualOrderCanal" class="form-label">Canal</label>
+                                    <input type="text" class="form-control" id="manualOrderCanal" placeholder="Ej: MOSTRADOR">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="manualOrderNroOrden" class="form-label">Nro Orden (Opcional)</label>
+                                    <input type="text" class="form-control" id="manualOrderNroOrden">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-manual-order">Guardar Orden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.MANUAL_ORDER_MODAL, modalHTML);
+        }
+        async function saveManualOrder() {
+            const idVenta = document.getElementById('manualOrderIdVenta').value.trim();
+            const cliente = document.getElementById('manualOrderCliente').value.trim();
+            const productName = document.getElementById('manualOrderProductName').value.trim();
+            const productId = document.getElementById('manualOrderProductId').value.trim();
+            const cantidad = document.getElementById('manualOrderCantidad').value;
+            const canal = document.getElementById('manualOrderCanal').value.trim();
+            const nroOrden = document.getElementById('manualOrderNroOrden').value.trim();
+
+            if (!idVenta || !cliente || !productId || !canal) {
+                return alert('Por favor, complete todos los campos obligatorios: ID Venta, Cliente, Producto y Canal.');
+            }
+            const cantidadNum = parseInt(cantidad, 10);
+            if (isNaN(cantidadNum) || cantidadNum <= 0) {
+                return alert('La cantidad debe ser un número mayor a cero.');
+            }
+            
+            const timestamp = getTimestamp();
+            const newOrderRow = [
+                timestamp,      // A: Fecha
+                idVenta,        // B: ID Venta
+                productName,    // C: Producto
+                productId,      // D: ID Producto
+                cantidadNum,    // E: Cantidad
+                canal,          // F: Canal
+                '',             // G: Estado (SIN ESTADO por defecto)
+                cliente,        // H: Cliente
+                nroOrden        // I: Nro de Orden
+            ];
+            
+            activeModals[CONSTANTS.IDS.MANUAL_ORDER_MODAL]?.hide();
+            showLoading(true, 'Guardando nueva orden...');
+
+            try {
+                await appendToSheet(CONSTANTS.RANGES.ordenes, [newOrderRow]);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        function selectProductForManualOrder(productId, productName) {
+            const nameInput = document.getElementById('manualOrderProductName');
+            const idInput = document.getElementById('manualOrderProductId');
+            if (!nameInput || !idInput) return;
+
+            nameInput.value = productName;
+            idInput.value = productId;
+
+            const resultsContainer = nameInput.closest('.autocomplete-container').querySelector('.autocomplete-results');
+            resultsContainer.innerHTML = '';
+            resultsContainer.style.display = 'none';
+        }
+
+        function showLocationControlModal() {
+            const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+            const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.LOCATION_CONTROL_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Control de Stock en Ubicación</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="control-location-select" class="form-label">Seleccione una Ubicación</label>
+                                <input class="form-control" list="control-location-options" id="control-location-select" placeholder="Escriba o seleccione para buscar...">
+                                <datalist id="control-location-options">${locationOptions}</datalist>
+                            </div>
+                            <div id="location-control-product-list-container" class="d-none">
+                                <hr>
+                                <h6>Productos en <span id="selected-control-location" class="fw-bold"></span></h6>
+                                <div class="table-responsive" style="max-height: 40vh;">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>ID Producto</th>
+                                                <th>Nombre</th>
+                                                <th class="text-end">Stock Sistema</th>
+                                                <th class="text-end" style="width: 120px;">Stock Físico</th>
+                                                <th class="text-center">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="location-control-product-list"></tbody>
+                                    </table>
+                                </div>
+                                <button class="btn btn-outline-success btn-sm mt-2" data-action="add-location-control-line">
+                                    <span class="material-icons align-middle">add</span> Agregar Producto
+                                </button>
+                                <hr>
+                                <div class="mb-3">
+                                    <label for="location-control-note" class="form-label">Nota General del Control</label>
+                                    <input type="text" id="location-control-note" class="form-control" placeholder="Ej: Control cíclico anual, ajuste por rotura, etc.">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="save-location-control-btn" data-action="save-location-control" disabled>Confirmar Control</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.LOCATION_CONTROL_MODAL, modalHTML);
+        }
+
+        function populateLocationControlModal(location) {
+            const productListBody = document.getElementById('location-control-product-list');
+            const container = document.getElementById('location-control-product-list-container');
+            const saveBtn = document.getElementById('save-location-control-btn');
+            const locationSpan = document.getElementById('selected-control-location');
+            if (!productListBody || !container || !saveBtn || !locationSpan) return;
+
+            locationSpan.textContent = location;
+            productListBody.innerHTML = '';
+            
+            let productsInLocation = [];
+            fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
+                if (locationsMap.has(location) && locationsMap.get(location) > 0) {
+                    const product = fullData.productos.find(p => p[0] === productId);
+                    if (product) {
+                        productsInLocation.push({
+                            id: productId,
+                            name: product[1],
+                            systemStock: locationsMap.get(location)
+                        });
+                    }
+                }
+            });
+
+            productsInLocation.sort((a,b) => a.name.localeCompare(b.name));
+            productsInLocation.forEach(p => addLocationControlLine(p));
+
+            container.classList.remove('d-none');
+            saveBtn.disabled = false;
+            saveBtn.dataset.location = location; 
+        }
+
+        function addLocationControlLine(product = null) {
+            const productListBody = document.getElementById('location-control-product-list');
+            if (!productListBody) return;
+
+            const lineId = `control-line-${Date.now()}`;
+            const productId = product ? product.id : '';
+            const productName = product ? product.name : '';
+            const systemStock = product ? product.systemStock : 0;
+
+            const lineHTML = `
+                <tr id="${lineId}" class="control-product-line" data-product-id="${productId}" data-product-name="${sanitizeHTML(productName)}" data-system-stock="${systemStock}">
+                    <td class="align-middle">${productId || '<span class="text-muted">Nuevo</span>'}</td>
+                    <td class="align-middle autocomplete-container">
+                        ${product ? sanitizeHTML(productName) : `<input type="text" class="form-control form-control-sm product-name-input" placeholder="Buscar producto..." data-action="search-products-for-control" data-target-line-id="${lineId}"><div class="autocomplete-results"></div>`}
+                    </td>
+                    <td class="align-middle text-end">${systemStock}</td>
+                    <td><input type="number" class="form-control form-control-sm text-end physical-stock-input" min="0" value="${systemStock}"></td>
+                    <td class="text-center align-middle">
+                        <button class="btn btn-icon text-danger" title="Eliminar Fila" data-action="remove-element" data-target-id="${lineId}">
+                            <span class="material-icons">delete_outline</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            productListBody.insertAdjacentHTML('beforeend', lineHTML);
+        }
+
+        async function saveLocationControl() {
+            const location = document.getElementById('save-location-control-btn').dataset.location;
+            if (!location) return alert("Error: Ubicación no especificada.");
+
+            const lines = document.querySelectorAll('.control-product-line');
+            if (lines.length === 0) return alert("No hay productos en la lista para controlar.");
+
+            showLoading(true, "Registrando control...");
+
+            const controlRows = [];
+            const movementRows = [];
+            const timestamp = getTimestamp();
+            const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
+            const note = document.getElementById('location-control-note').value.trim();
+
+            for (const line of lines) {
+                const productId = line.dataset.productId;
+                const productName = line.dataset.productName;
+                const systemStock = parseInt(line.dataset.systemStock, 10);
+                const physicalStockInput = line.querySelector('.physical-stock-input');
+                const physicalStock = physicalStockInput ? parseInt(physicalStockInput.value, 10) : 0;
+                
+                if (!productId || isNaN(physicalStock) || physicalStock < 0) {
+                    continue; 
+                }
+                
+                const adjustment = physicalStock - systemStock;
+
+                // Siempre registrar el control
+                controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
+                
+                // Solo registrar movimiento si hay ajuste
+                if (adjustment !== 0) {
+                    movementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
+                }
+            }
+
+            try {
+                if (controlRows.length > 0) {
+                    const promises = [appendToSheet(CONSTANTS.RANGES.controles, controlRows)];
+                    if (movementRows.length > 0) {
+                        promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, movementRows));
+                    }
+                    await Promise.all(promises);
+                } else {
+                    alert("No se procesó ningún producto válido en el control.");
+                }
+                activeModals[CONSTANTS.IDS.LOCATION_CONTROL_MODAL]?.hide();
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function showProductControlModal() {
+             const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+             const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.PRODUCT_CONTROL_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Control de Stock por Producto</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3 autocomplete-container">
+                                <label for="product-control-search" class="form-label">Seleccione un Producto</label>
+                                <input type="text" id="product-control-search" class="form-control" placeholder="Buscar por ID o nombre..." data-action="search-for-product-control">
+                                <div class="autocomplete-results"></div>
+                                <datalist id="product-control-location-options">${locationOptions}</datalist>
+                            </div>
+                            <div id="product-control-location-list-container" class="d-none">
+                                <hr>
+                                <h6>Ubicaciones para <span id="selected-control-product" class="fw-bold"></span></h6>
+                                <div class="table-responsive" style="max-height: 40vh;">
+                                    <table class="table table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th style="width: 30%;">Ubicación</th>
+                                                <th class="text-end">Stock Sistema</th>
+                                                <th class="text-end" style="width: 120px;">Stock Físico</th>
+                                                <th class="text-center">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="product-control-location-list"></tbody>
+                                    </table>
+                                </div>
+                                <button class="btn btn-outline-success btn-sm mt-2" data-action="add-product-control-line">
+                                    <span class="material-icons align-middle">add</span> Agregar Ubicación
+                                </button>
+                                <hr>
+                                <div class="mb-3">
+                                    <label for="product-control-note" class="form-label">Nota General del Control</label>
+                                    <input type="text" id="product-control-note" class="form-control" placeholder="Ej: Control cíclico anual, ajuste por rotura, etc.">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="save-product-control-btn" data-action="save-product-control" disabled>Confirmar Control</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.PRODUCT_CONTROL_MODAL, modalHTML);
+        }
+        
+        function populateProductControlModal(productId, productName) {
+            const searchInput = document.getElementById('product-control-search');
+            if(searchInput) {
+                const resultsContainer = searchInput.closest('.autocomplete-container').querySelector('.autocomplete-results');
+                searchInput.value = `${productName} (ID: ${productId})`;
+                searchInput.disabled = true; 
+                resultsContainer.innerHTML = '';
+                resultsContainer.style.display = 'none';
+            }
+
+            const locationListBody = document.getElementById('product-control-location-list');
+            const container = document.getElementById('product-control-location-list-container');
+            const saveBtn = document.getElementById('save-product-control-btn');
+            const productSpan = document.getElementById('selected-control-product');
+            if (!locationListBody || !container || !saveBtn || !productSpan) return;
+
+            productSpan.textContent = `${productName} (ID: ${productId})`;
+            locationListBody.innerHTML = '';
+
+            const locationsMap = fullData.stockPorUbicacion.get(productId);
+            if (locationsMap && locationsMap.size > 0) {
+                 const locationsWithStock = [...locationsMap.entries()];
+                 locationsWithStock.sort((a, b) => a[0].localeCompare(b[0]));
+                 locationsWithStock.forEach(([location, systemStock]) => {
+                     const stock = systemStock || 0;
+                     const lineHTML = `
+                         <tr class="product-control-line" data-location="${sanitizeHTML(location)}" data-system-stock="${stock}">
+                             <td class="align-middle" style="width: 30%;"><strong>${sanitizeHTML(location)}</strong></td>
+                             <td class="align-middle text-end">${stock}</td>
+                             <td><input type="number" class="form-control form-control-sm text-end physical-stock-input" min="0" value="${stock}"></td>
+                             <td class="text-center"></td>
+                         </tr>
+                     `;
+                     locationListBody.innerHTML += lineHTML;
+                 });
+            }
+
+            container.classList.remove('d-none');
+            saveBtn.disabled = false;
+            saveBtn.dataset.productId = productId;
+            saveBtn.dataset.productName = productName;
+        }
+
+        function addProductControlLine() {
+            const tBody = document.getElementById('product-control-location-list');
+            if(!tBody) return;
+            const lineId = `prod-control-line-${Date.now()}`;
+            const lineHTML = `
+                <tr id="${lineId}" class="product-control-line" data-system-stock="0">
+                    <td class="align-middle" style="width: 30%;">
+                        <input class="form-control form-control-sm new-location-input" list="product-control-location-options" placeholder="Elegir o escribir...">
+                    </td>
+                    <td class="align-middle text-end">0</td>
+                    <td><input type="number" class="form-control form-control-sm text-end physical-stock-input" min="0" value="1"></td>
+                    <td class="text-center align-middle">
+                        <button class="btn btn-icon text-danger" title="Eliminar Fila" data-action="remove-element" data-target-id="${lineId}">
+                           <span class="material-icons">delete_outline</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tBody.insertAdjacentHTML('beforeend', lineHTML);
+            tBody.querySelector(`#${lineId} .new-location-input`).focus();
+        }
+
+        async function saveProductControl() {
+            const btn = document.getElementById('save-product-control-btn');
+            const productId = btn.dataset.productId;
+            const productName = btn.dataset.productName;
+            if (!productId) return alert("Error: Producto no especificado.");
+
+            const lines = document.querySelectorAll('.product-control-line');
+            if (lines.length === 0) return alert("No hay ubicaciones en la lista para controlar.");
+
+            showLoading(true, "Registrando control...");
+
+            const controlRows = [];
+            const movementRows = [];
+            const timestamp = getTimestamp();
+            const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
+            let hasErrors = false;
+            const note = document.getElementById('product-control-note').value.trim();
+
+            for (const line of lines) {
+                let location = line.dataset.location;
+                if (!location) {
+                    const locationInput = line.querySelector('.new-location-input');
+                    if (locationInput) {
+                        location = locationInput.value.trim().toUpperCase();
+                    }
+                }
+                if (!location) continue;
+
+                if (!validLocations.has(location)) {
+                    alert(`La ubicación "${location}" no es válida. Por favor, corríjala o elimínela de la lista.`);
+                    hasErrors = true;
+                    break;
+                }
+
+                const systemStock = parseInt(line.dataset.systemStock, 10);
+                const physicalStockInput = line.querySelector('.physical-stock-input');
+                const physicalStock = physicalStockInput ? parseInt(physicalStockInput.value, 10) : 0;
+                
+                if (isNaN(physicalStock) || physicalStock < 0) continue; 
+                
+                const adjustment = physicalStock - systemStock;
+
+                // Siempre registrar el control
+                controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.PRODUCT_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
+                
+                // Solo registrar movimiento si hay ajuste
+                if (adjustment !== 0) {
+                    movementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
+                }
+            }
+
+            if (hasErrors) {
+                showLoading(false);
+                return;
+            }
+
+            try {
+                if (controlRows.length > 0) {
+                    const promises = [appendToSheet(CONSTANTS.RANGES.controles, controlRows)];
+                    if (movementRows.length > 0) {
+                        promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, movementRows));
+                    }
+                    await Promise.all(promises);
+                } else {
+                    alert("No se procesó ninguna ubicación válida en el control.");
+                }
+                activeModals[CONSTANTS.IDS.PRODUCT_CONTROL_MODAL]?.hide();
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function dispatchOrder(originalIndex) {
+            const order = fullData.ordenes[originalIndex];
+            if (!order) return alert('Error: No se encontró la orden para despachar.');
+            
+            showLoading(true, 'Despachando orden...');
+            const range = `${CONSTANTS.SHEET_NAMES.ORDERS}!G${Number(originalIndex) + 2}`;
+            
+            try {
+                 await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: range,
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [[CONSTANTS.STATUS.SHIPPED]] }
+                });
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function bulkDispatch() {
+            if (!confirm('¿Está seguro de que desea despachar masivamente todas las órdenes visibles en estado "PICKEADO"?')) return;
+
+            const tableBody = document.getElementById('orders-table');
+            if (!tableBody) return;
+
+            const visibleRows = Array.from(tableBody.rows).filter(row => row.style.display !== 'none');
+            const updates = [];
+
+            visibleRows.forEach(row => {
+                const orderIndex = parseInt(row.dataset.orderIndex, 10);
+                const order = fullData.ordenes[orderIndex];
+                if (order && (order[6] || '').toUpperCase() === CONSTANTS.STATUS.PICKED) {
+                    updates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${orderIndex + 2}`,
+                        values: [[CONSTANTS.STATUS.SHIPPED]]
+                    });
+                }
+            });
+
+            if (updates.length === 0) {
+                alert('No se encontraron órdenes en estado "PICKEADO" en la vista actual para despachar.');
+                return;
+            }
+
+            showLoading(true, `Despachando ${updates.length} órdenes...`);
+            try {
+                await batchUpdateSheet(updates);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function filterTable(tableId, filters) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const rows = table.rows;
+            for (const row of rows) {
+                row.style.display = filters.every(filter => filter(row)) ? '' : 'none';
+            }
+        }
+        function filterProductsTable() {
+            const searchText = document.getElementById('product-search').value.toLowerCase();
+            filterTable('products-table', [row => (row.dataset.search || '').toLowerCase().includes(searchText)]);
+        }
+        function filterMovementsTable() {
+            const searchText = document.getElementById('movement-search').value.toLowerCase();
+            const searchDate = document.getElementById('movement-date-filter').value;
+            const searchType = document.getElementById('movement-type-filter').value;
+            const searchLocation = document.getElementById('movement-location-filter').value;
+            filterTable('movements-table', [
+                row => (row.dataset.search || '').toLowerCase().includes(searchText),
+                row => !searchType || row.cells[5].textContent === searchType,
+                row => !searchLocation || row.cells[4].textContent === searchLocation,
+                row => {
+                    if (!searchDate) return true;
+                    const rowDateStr = row.cells[0].textContent.split(' ')[0];
+                    const [day, month, year] = rowDateStr.split('/');
+                    return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}` === searchDate;
+                }
+            ]);
+        }
+        function filterOrdersTable() {
+            const searchText = document.getElementById('order-search').value.toLowerCase();
+            const searchDate = document.getElementById('order-date-filter').value;
+            const searchChannel = document.getElementById('order-channel-filter').value;
+
+            filterTable('orders-table', [
+                row => (row.dataset.search || '').toLowerCase().includes(searchText),
+                row => !searchChannel || row.cells[5].textContent === searchChannel,
+                row => {
+                    if (!searchDate) return true;
+                    const rowDateStr = row.cells[0].textContent.split(' ')[0];
+                    const [day, month, year] = rowDateStr.split('/');
+                    if (!day || !month || !year) return false;
+                    const formattedRowDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    return formattedRowDate === searchDate;
+                }
+            ]);
+        }
+        function filterRemitosTable() {
+            const searchDate = document.getElementById('remito-date-filter').value;
+            const searchType = document.getElementById('remito-type-filter').value;
+            const searchMotivo = document.getElementById('remito-motivo-filter').value;
+            const searchOrigen = document.getElementById('remito-origen-filter').value;
+            filterTable('remitos-table', [
+                row => !searchType || row.dataset.tipo === searchType,
+                row => !searchMotivo || row.dataset.motivo === searchMotivo,
+                row => !searchOrigen || row.dataset.origen === searchOrigen,
+                row => {
+                    if (!searchDate) return true;
+                    const rowDateStr = row.dataset.fecha.split(' ')[0];
+                    const [day, month, year] = rowDateStr.split('/');
+                    return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}` === searchDate;
+                }
+            ]);
+        }
+        function sortProducts(sortBy, forceAscending = false) {
+            if (productSort.by === sortBy && !forceAscending) {
+                productSort.ascending = !productSort.ascending;
+            } else {
+                productSort.by = sortBy;
+                productSort.ascending = true;
+            }
+            const sorted = [...fullData.productos].sort((a, b) => {
+                let valA, valB;
+                switch (productSort.by) {
+                    case 'id':
+                        valA = parseInt(a[0], 10) || 0;
+                        valB = parseInt(b[0], 10) || 0;
+                        break;
+                    case 'name':
+                        valA = a[1] || '';
+                        valB = b[1] || '';
+                        break;
+                    case 'stock':
+                        valA = fullData.stockTotal.get(String(a[0])) || 0;
+                        valB = fullData.stockTotal.get(String(b[0])) || 0;
+                        break;
+                    default: return 0;
+                }
+                let comparison = 0;
+                if (typeof valA === 'string') {
+                    comparison = valA.localeCompare(valB);
+                } else {
+                    comparison = valA - valB;
+                }
+                return comparison * (productSort.ascending ? 1 : -1);
+            });
+            fullData.productos = sorted;
+            if(DOM.views.productos.classList.contains('active')) renderProductsView();
+        }
+        function updateSortIcons() {
+            document.querySelectorAll('#productos thead th .sort-icon').forEach(icon => icon.textContent = '');
+            const activeHeader = document.querySelector(`#productos thead th[data-sort-by="${productSort.by}"]`);
+            if (activeHeader) {
+                const icon = activeHeader.querySelector('.sort-icon');
+                icon.textContent = productSort.ascending ? 'arrow_drop_up' : 'arrow_drop_down';
+            }
+        }
+        function handleAction(e) {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+            const action = target.dataset.action;
+            const data = target.dataset;
+            const actionMap = {
+                'show-new-product-modal': showNewProductModal,
+                'save-new-product': saveNewProduct,
+                'show-edit-product-modal': () => showEditProductModal(data.productId, parseInt(data.index, 10)),
+                'save-product-changes': saveProductChanges,
+                'delete-product': () => deleteProduct(data.productId),
+                'show-stock-location-modal': () => showStockLocationModal(data.productId),
+                'show-new-movement-modal': showNewMovementModal,
+                'save-new-movement': saveNewMovement,
+                'show-move-stock-modal': showMoveStockModal,
+                'save-move-stock': saveMoveStock,
+                'add-movement-line': addNewMovementLine,
+                'remove-element': () => document.getElementById(data.targetId)?.remove(),
+                'generate-tasks': handleGenerateTasks,
+                'handle-stage-click': () => handleStageClick(data.productId, data.state),
+                'confirm-picking': () => confirmPicking(data.productId),
+                'confirm-out-of-stock': () => confirmOutOfStock(data.productId),
+                'declare-no-stock': () => declareNoStock(data.productId, data.location, data.stockSistema),
+                'select-product-for-movement': () => selectProductForMovement(data.productId, data.productName, data.targetInputId),
+                'sort-products': () => sortProducts(data.sortBy),
+                'show-remito-detail': () => showRemitoDetailModal(data.remitoId),
+                'download-tasks-pdf': downloadTasksPDF,
+                'show-incident-modal': showIncidentManagementModal,
+                'resolve-incident': () => resolveIncident(parseInt(data.orderIndex, 10)),
+                'show-add-order-modal': () => showAddOrderModal(data.orderIndex),
+                'save-order-number': () => saveOrderNumber(data.orderIndex),
+                'show-location-control-modal': showLocationControlModal,
+                'add-location-control-line': () => addLocationControlLine(),
+                'save-location-control': saveLocationControl,
+                'select-product-for-control': () => selectProductForControl(data.productId, data.productName, data.targetLineId),
+                'show-product-control-modal': showProductControlModal,
+                'add-product-control-line': addProductControlLine,
+                'save-product-control': saveProductControl,
+                'select-product-for-product-control': () => populateProductControlModal(data.productId, data.productName),
+                'show-location-group-details': () => showLocationGroupDetailsModal(data.locations, data.label),
+                'download-products-csv': downloadProductsCSV,
+                'download-location-detail-pdf': () => downloadLocationDetailPDF(data.label, data.locations),
+                'download-remito-detail-pdf': () => downloadRemitoDetailPDF(data.remitoId),
+                'download-order-label': () => downloadOrderLabel(data),
+                'show-manual-order-modal': showManualOrderModal,
+                'save-manual-order': saveManualOrder,
+                'select-product-for-manual-order': () => selectProductForManualOrder(data.productId, data.productName),
+                'dispatch-order': () => dispatchOrder(parseInt(data.orderIndex, 10)),
+                'bulk-print-labels': bulkPrintLabels,
+                'bulk-dispatch': bulkDispatch,
+                'bulk-generate-remito': bulkGenerateRemito,
+            };
+            if (actionMap[action]) actionMap[action]();
+        }
+        function handleInput(e) {
+            const target = e.target;
+            const inputMap = {
+                'product-search': filterProductsTable,
+                'movement-search': filterMovementsTable,
+                'order-search': filterOrdersTable,
+            };
+            if (inputMap[target.id]) inputMap[target.id]();
+            
+            const action = target.dataset.action;
+            if (action === 'search-products-for-movement') {
+                searchProductsForMovement(target, 'select-product-for-movement');
+            } else if (action === 'search-products-for-control') {
+                searchProductsForMovement(target, 'select-product-for-control');
+            } else if (action === 'search-for-product-control') {
+                searchProductsForMovement(target, 'select-product-for-product-control');
+            } else if (action === 'search-replacement-product') {
+                searchReplacementProduct(target, target.dataset.orderIndex);
+            } else if (action === 'search-products-for-order') {
+                searchProductsForMovement(target, 'select-product-for-manual-order');
+            }
+
+             if(target.classList.contains('picking-qty-input')) {
+                const totalCountEl = document.getElementById('total-picked-count');
+                if(totalCountEl) {
+                    const inputs = document.querySelectorAll('.picking-qty-input');
+                    const total = [...inputs].reduce((sum, input) => sum + (parseInt(input.value, 10) || 0), 0);
+                    totalCountEl.textContent = total;
+                }
+            }
+        }
+        function handleChange(e) {
+            const target = e.target;
+            const idMap = {
+                'movement-date-filter': filterMovementsTable,
+                'movement-type-filter': filterMovementsTable,
+                'movement-location-filter': filterMovementsTable,
+                'remito-date-filter': filterRemitosTable,
+                'remito-type-filter': filterRemitosTable,
+                'remito-motivo-filter': filterRemitosTable,
+                'remito-origen-filter': filterRemitosTable,
+                'order-date-filter': filterOrdersTable,
+                'order-channel-filter': filterOrdersTable,
+                'control-location-select': () => populateLocationControlModal(target.value)
+            };
+            if (idMap[target.id]) idMap[target.id]();
+            if (target.dataset.action === 'handle-incident-action-change') {
+                handleIncidentActionChange(target, parseInt(target.dataset.orderIndex, 10));
+            }
+            if (target.id === 'movementType') {
+                toggleMovementLocation(target);
+            }
+        }
+        function searchProductsForMovement(input, selectAction) {
+            const resultsContainer = input.closest('.autocomplete-container').querySelector('.autocomplete-results');
+            const searchTerm = input.value.toLowerCase();
+            resultsContainer.innerHTML = '';
+            if (searchTerm.length < 2) return resultsContainer.style.display = 'none';
+            const filtered = (fullData.productos || []).filter(p => (p[1] || '').toLowerCase().includes(searchTerm) || (p[0] || '').toLowerCase().includes(searchTerm)).slice(0, 10);
+            if (filtered.length > 0) {
+                filtered.forEach(p => {
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'autocomplete-item';
+                    item.textContent = `${p[1]} (ID: ${p[0]})`;
+                    item.dataset.action = selectAction;
+                    item.dataset.productId = p[0];
+                    item.dataset.productName = p[1];
+                    
+                    if (selectAction === 'select-product-for-movement') {
+                         item.dataset.targetInputId = input.id;
+                    }
+                    if (selectAction === 'select-product-for-control') {
+                         item.dataset.targetLineId = input.dataset.targetLineId;
+                    }
+
+                    resultsContainer.appendChild(item);
+                });
+                resultsContainer.style.display = 'block';
+            } else {
+                resultsContainer.style.display = 'none';
+            }
+        }
+        function selectProductForMovement(productId, productName, targetInputId) {
+            const nameInput = document.getElementById(targetInputId);
+            if (!nameInput) return;
+            const line = nameInput.closest('.movement-product-line');
+            line.querySelector('.product-id-input').value = productId;
+            nameInput.value = productName;
+            const resultsContainer = nameInput.closest('.autocomplete-container').querySelector('.autocomplete-results');
+            resultsContainer.style.display = 'none';
+            resultsContainer.innerHTML = '';
+        }
+        function selectProductForControl(productId, productName, targetLineId) {
+            const line = document.getElementById(targetLineId);
+            if(!line) return;
+
+            const nameCell = line.querySelector('.autocomplete-container');
+            const idCell = line.cells[0];
+            const physicalStockInput = line.querySelector('.physical-stock-input');
+
+            line.dataset.productId = productId;
+            line.dataset.productName = productName;
+            line.dataset.systemStock = "0"; 
+
+            idCell.textContent = productId;
+            nameCell.innerHTML = sanitizeHTML(productName);
+            physicalStockInput.value = "1";
+
+            physicalStockInput.focus();
+            physicalStockInput.select();
+        }
+        function showIncidentManagementModal() {
+            const incidents = fullData.ordenes.map((order, index) => ({ order, index })).filter(item => item.order[6] && item.order[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
+            const incidentRowsHTML = incidents.map(({ order, index }) => `
+                <tr id="incident-row-${index}">
+                    <td>${sanitizeHTML(order[1])}</td>
+                    <td>${sanitizeHTML(order[3])}</td>
+                    <td>${sanitizeHTML(order[2])}</td>
+                    <td>${sanitizeHTML(order[4])}</td>
+                    <td>
+                        <select class="form-select form-select-sm" data-action="handle-incident-action-change" data-order-index="${index}">
+                            <option value="" selected>Seleccionar Solución...</option>
+                            <option value="change_product">Cambiar Producto</option>
+                            <option value="verify_stock">Verificar Existencia</option>
+                            <option value="cancel_order">Cancelar Orden</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr id="incident-details-${index}" class="d-none">
+                    <td colspan="5" class="p-3 bg-light"></td>
+                </tr>
+            `).join('');
+
+            const tableHeader = `<thead class="table-light"><tr><th>ID Venta</th><th>ID Producto</th><th>Nombre</th><th>Cantidad</th><th>Acción a Tomar</th></tr></thead>`;
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.INCIDENT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Gestión de Incidencias</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        ${incidentRowsHTML ? tableHeader + `<tbody>${incidentRowsHTML}</tbody>` : ''}
+                    </table>
+                </div>
+                ${!incidentRowsHTML ? '<p class="text-center">No hay incidencias para gestionar.</p>' : ''}
+            </div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>`;
+            createAndShowModal(CONSTANTS.IDS.INCIDENT_MODAL, modalHTML);
+        }
+        function handleIncidentActionChange(selectElement, originalIndex) {
+            const action = selectElement.value;
+            const detailsRow = document.getElementById(`incident-details-${originalIndex}`);
+            const detailsContainer = detailsRow.querySelector('td');
+            const orderData = fullData.ordenes[originalIndex];
+            let contentHTML = '';
+
+            switch (action) {
+                case 'change_product':
+                     contentHTML = `<h6>Reemplazar por:</h6>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text" style="width: 80px;">ID</span>
+                            <input type="text" id="replacement-id-${originalIndex}" class="form-control" placeholder="Se completará al buscar" readonly>
+                        </div>
+                        <div class="autocomplete-container">
+                            <div class="input-group">
+                                <span class="input-group-text" style="width: 80px;">Nombre</span>
+                                <input type="text" class="form-control" placeholder="Buscar por ID o Nombre con stock..." data-action="search-replacement-product" data-order-index="${originalIndex}">
+                                <button id="confirm-change-btn-${originalIndex}" class="btn btn-primary" disabled data-action="resolve-incident" data-order-index="${originalIndex}">Confirmar Cambio</button>
+                            </div>
+                            <div class="autocomplete-results"></div>
+                        </div>
+                        <div id="replacement-stock-details-${originalIndex}" class="form-text mt-2"></div>`;
+                    break;
+                case 'verify_stock':
+                    const stockActual = fullData.stockTotal.get(orderData[3]) || 0;
+                    if (stockActual > 0) {
+                        contentHTML = `<p>Stock actual en sistema para <strong>${sanitizeHTML(orderData[2])}</strong>: <strong class="text-success">${stockActual}</strong> unidades.</p>
+                                     <p>Si has verificado físicamente la existencia, puedes reactivar la orden para que vuelva a la cola de preparación.</p>
+                                     <button class="btn btn-success" data-action="resolve-incident" data-order-index="${originalIndex}">Confirmar Stock y Reactivar Orden</button>`;
+                    } else {
+                        contentHTML = `<p class="text-danger">Stock actual en sistema para <strong>${sanitizeHTML(orderData[2])}</strong>: <strong>0</strong> unidades.</p>
+                                     <p>No se puede reactivar la orden. Por favor, ingrese stock desde el módulo de <strong>Movimientos</strong> y luego vuelva a gestionar esta incidencia.</p>`;
+                    }
+                    break;
+                case 'cancel_order':
+                    contentHTML = `<p class="text-danger">¿Estás seguro de que deseas cancelar la orden de venta <strong>${sanitizeHTML(orderData[1])}</strong>? Esta acción es definitiva.</p>
+                        <button class="btn btn-danger" data-action="resolve-incident" data-order-index="${originalIndex}">Confirmar Cancelación</button>`;
+                    break;
+            }
+            detailsContainer.innerHTML = contentHTML;
+            detailsRow.classList.toggle('d-none', !action);
+        }
+        function searchReplacementProduct(inputElement, originalIndex) {
+            const searchTerm = inputElement.value.toLowerCase();
+            const detailsContainer = inputElement.closest('td');
+            const resultsContainer = detailsContainer.querySelector('.autocomplete-results');
+
+            detailsContainer.querySelector(`#replacement-id-${originalIndex}`).value = '';
+            detailsContainer.querySelector(`#replacement-stock-details-${originalIndex}`).innerHTML = '';
+            detailsContainer.querySelector(`#confirm-change-btn-${originalIndex}`).disabled = true;
+
+            resultsContainer.innerHTML = '';
+            if (searchTerm.length < 2) { resultsContainer.style.display = 'none'; return; }
+            
+            const filteredProducts = fullData.productos.filter(p => {
+                const hasStock = (fullData.stockTotal.get(p[0]) || 0) > 0;
+                const matchesSearch = (p[1] || '').toLowerCase().includes(searchTerm) || (p[0] || '').toLowerCase().includes(searchTerm);
+                return hasStock && matchesSearch;
+            }).slice(0, 10);
+
+            if (filteredProducts.length > 0) {
+                filteredProducts.forEach(p => {
+                    const item = document.createElement('a');
+                    item.href = '#';
+                    item.className = 'autocomplete-item';
+                    item.textContent = `${p[1]} (ID: ${p[0]})`;
+                    item.onclick = (e) => {
+                        e.preventDefault();
+                        selectReplacementProduct(p, inputElement, originalIndex);
+                    };
+                    resultsContainer.appendChild(item);
+                });
+                resultsContainer.style.display = 'block';
+            } else { resultsContainer.style.display = 'none'; }
+        }
+        function selectReplacementProduct(product, nameInputElement, originalIndex) {
+            const [newProductId, newProductName] = product;
+            const detailsContainer = nameInputElement.closest('td');
+
+            const idInputElement = detailsContainer.querySelector(`#replacement-id-${originalIndex}`);
+            const stockDetailsContainer = detailsContainer.querySelector(`#replacement-stock-details-${originalIndex}`);
+            const confirmButton = detailsContainer.querySelector(`#confirm-change-btn-${originalIndex}`);
+            
+            nameInputElement.value = newProductName;
+            idInputElement.value = newProductId;
+            
+            detailsContainer.querySelector('.autocomplete-results').style.display = 'none';
+            
+            detailsContainer.dataset.newProductId = newProductId;
+            detailsContainer.dataset.newProductName = newProductName;
+            
+            const totalStock = fullData.stockTotal.get(newProductId) || 0;
+            stockDetailsContainer.innerHTML = `Stock total disponible para ${newProductName}: <strong class="text-success">${totalStock}</strong> unidades.`;
+
+            if (confirmButton) { confirmButton.disabled = false; }
+        }
+        async function resolveIncident(originalIndex) {
+            const incidentRow = document.getElementById(`incident-row-${originalIndex}`);
+            const action = incidentRow.querySelector('select').value;
+            if (!action) return;
+
+            showLoading(true, 'Procesando incidencia...');
+            let updates = [];
+            
+            try {
+                switch (action) {
+                    case 'change_product':
+                        const detailsContainer = document.getElementById(`incident-details-${originalIndex}`).querySelector('td');
+                        const newProductId = detailsContainer.dataset.newProductId;
+                        const newProductName = detailsContainer.dataset.newProductName;
+                        if (!newProductId) { throw new Error("No se seleccionó un producto de reemplazo."); }
+                        
+                        updates.push(
+                            { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!C${originalIndex + 2}`, values: [[newProductName]] },
+                            { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!D${originalIndex + 2}`, values: [[newProductId]] },
+                            { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${originalIndex + 2}`, values: [[CONSTANTS.STATUS.PENDING]] }
+                        );
+                        break;
+                    case 'verify_stock':
+                        updates.push({
+                            range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${originalIndex + 2}`,
+                            values: [[CONSTANTS.STATUS.PENDING]]
+                        });
+                        break;
+                    case 'cancel_order':
+                        updates.push({ range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${originalIndex + 2}`, values: [[CONSTANTS.STATUS.CANCELLED]] });
+                        break;
+                }
+
+                if (updates.length > 0) { await batchUpdateSheet(updates); }
+                
+                activeModals[CONSTANTS.IDS.INCIDENT_MODAL]?.hide();
+                await loadInitialData();
+            } catch (err) { handleApiError(err); }  
+            finally { showLoading(false); }
+        }
+        function showAddOrderModal(originalIndex) {
+            const order = fullData.ordenes[originalIndex];
+            if (!order) return alert('Error: No se pudo encontrar la orden.');
+
+            const modalHTML = `
+            <div class="modal fade" id="${CONSTANTS.IDS.ADD_ORDER_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Agregar Número de Orden</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>ID Venta:</strong> ${sanitizeHTML(order[1])}</p>
+                            <p><strong>Producto:</strong> ${sanitizeHTML(order[2])}</p>
+                            <p><strong>Cliente:</strong> ${sanitizeHTML(order[7] || 'N/A')}</p>
+                            <hr>
+                            <div class="mb-3">
+                                <label for="orderNumberInput" class="form-label">Número de Orden del Sistema</label>
+                                <input type="text" class="form-control" id="orderNumberInput" placeholder="Ingrese el número de orden...">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-order-number" data-order-index="${originalIndex}">Guardar Número</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal(CONSTANTS.IDS.ADD_ORDER_MODAL, modalHTML);
+        }
+        async function saveOrderNumber(originalIndex) {
+            const orderNumber = document.getElementById('orderNumberInput').value;
+            if (!orderNumber || orderNumber.trim() === '') {
+                return alert('Debe ingresar un número de orden.');
+            }
+
+            activeModals[CONSTANTS.IDS.ADD_ORDER_MODAL]?.hide();
+            showLoading(true, 'Guardando número de orden...');
+
+            const range = `${CONSTANTS.SHEET_NAMES.ORDERS}!I${Number(originalIndex) + 2}`;
+            
+            try {
+                await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: range,
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [[orderNumber]] }
+                });
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        function downloadTasksPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const pendingTasks = virtualTasks.filter(t => t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+            if (pendingTasks.length === 0) {
+                alert("No hay tareas de picking pendientes para descargar.");
+                return;
+            }
+
+            const tableColumn = ["#", "ID Producto", "Nombre", "Cliente", "Cantidad", "Ubicación", "OK", "Falta"];
+            const tableRows = [];
+
+            pendingTasks.forEach((task, index) => {
+                const locations = fullData.stockPorUbicacion.get(task.idProducto);
+                let bestLocation = "S/U";
+                if (locations && locations.size > 0) {
+                    const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
+                    if (sortedLocations.length > 0) bestLocation = sortedLocations[0][0];
+                }
+
+                const taskData = [
+                    index + 1,
+                    task.idProducto,
+                    task.nombre,
+                    task.clientes.join(', '),
+                    task.totalQuantity,
+                    bestLocation,
+                    '', 
+                    ''
+                ];
+                tableRows.push(taskData);
+            });
+            
+            const addFooters = doc => {
+                const pageCount = doc.internal.getNumberOfPages();
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(8);
+                for (var i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.text('Página ' + String(i) + ' de ' + String(pageCount), doc.internal.pageSize.width / 2, 287, { align: 'center' });
+                }
+            }
+            
+            const now = new Date();
+            const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+            const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            const fileNameDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const fileNameTime = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+            const fileName = `Lista_de_Picking_${fileNameDate}_${fileNameTime}.pdf`;
+
+            doc.setFontSize(20);
+            doc.text("TAREA DE PICKING", 14, 15);
+            doc.setFontSize(10);
+            doc.text(`${formattedDate} ${formattedTime}`, 14, 22);
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 30,
+                didDrawCell: function(data) {
+                    if (data.section === 'body' && (data.column.index === 6 || data.column.index === 7)) {
+                        doc.rect(data.cell.x + data.cell.width / 2 - 2, data.cell.y + 2, 4, 4);
                     }
                 }
             });
