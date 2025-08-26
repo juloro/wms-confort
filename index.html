@@ -545,6 +545,9 @@
                         <button class="btn btn-secondary" data-action="download-tasks-pdf">
                             <span class="material-icons align-middle me-1">picture_as_pdf</span> Descargar Lista (PDF)
                         </button>
+                        <button class="btn btn-success" data-action="bulk-pick-tasks">
+                            <span class="material-icons align-middle me-1">done_all</span> Picking Masivo
+                        </button>
                         <button class="btn btn-primary btn-lg" data-action="generate-tasks">
                             <span class="material-icons align-middle me-1">play_for_work</span> Generar Tareas
                         </button>
@@ -722,15 +725,13 @@
                 </button>`;
             const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
             
-            // CORREGIDO: Se implementa un método más robusto para obtener el índice original de cada fila,
-            // garantizando que las acciones individuales funcionen correctamente después de filtrar.
             const visibleOrdersHTML = (fullData.ordenes || [])
-                .map((order, index) => ({ order, originalIndex: index })) // Empaqueta la orden con su índice original
+                .map((order, index) => ({ order, originalIndex: index }))
                 .filter(item => {
                     const estado = (item.order[6] || '').toUpperCase();
                     return estado === CONSTANTS.STATUS.PENDING || estado === CONSTANTS.STATUS.PICKED;
                 })
-                .map(item => getOrderRowHTML(item.order, item.originalIndex)) // Pasa la orden y su índice original
+                .map(item => getOrderRowHTML(item.order, item.originalIndex))
                 .join('');
 
             container.innerHTML = `
@@ -918,6 +919,18 @@
             document.querySelectorAll('.view').forEach(v => v.innerHTML = '');
         }
 
+        function getBestLocationForProduct(productId) {
+            const locations = fullData.stockPorUbicacion.get(String(productId));
+            if (!locations || locations.size === 0) return null;
+            
+            const sortedLocations = [...locations.entries()]
+                .filter(([, stock]) => stock > 0)
+                .sort((a, b) => b[1] - a[1]); 
+
+            return sortedLocations.length > 0 ? sortedLocations[0][0] : null;
+        }
+
+
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -1018,14 +1031,7 @@
             const { idProducto, nombre, totalQuantity, state, clientes } = task;
             const currentState = state.toUpperCase();
 
-            let locationHTML = 'S/U';
-            const locations = fullData.stockPorUbicacion.get(idProducto);
-            if (locations && locations.size > 0) {
-                const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
-                if (sortedLocations.length > 0) {
-                    locationHTML = sortedLocations[0][0];
-                }
-            }
+            const locationHTML = getBestLocationForProduct(idProducto) || 'S/U';
             
             const buttonHTML = `<button class="btn btn-sm btn-success" data-action="handle-stage-click" data-product-id="${idProducto}" data-state="${currentState}">Pickear</button>`;
 
@@ -2228,6 +2234,7 @@
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
+            // CORREGIDO: Se ha verificado la sintaxis y los nombres de todas las funciones en este mapa.
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2274,6 +2281,7 @@
                 'bulk-print-labels': bulkPrintLabels,
                 'bulk-dispatch': bulkDispatch,
                 'bulk-generate-remito': bulkGenerateRemito,
+                'bulk-pick-tasks': bulkPickTasks,
             };
             if (actionMap[action]) actionMap[action]();
         }
@@ -2629,13 +2637,7 @@
             const tableRows = [];
 
             pendingTasks.forEach((task, index) => {
-                const locations = fullData.stockPorUbicacion.get(task.idProducto);
-                let bestLocation = "S/U";
-                if (locations && locations.size > 0) {
-                    const sortedLocations = [...locations.entries()].filter(([, stock]) => stock > 0).sort((a, b) => b[1] - a[1]);
-                    if (sortedLocations.length > 0) bestLocation = sortedLocations[0][0];
-                }
-
+                const bestLocation = getBestLocationForProduct(task.idProducto) || "S/U";
                 const taskData = [
                     index + 1,
                     task.idProducto,
@@ -3026,6 +3028,81 @@
             const now = new Date();
             const fileName = `Remito_Masivo_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.pdf`;
             doc.save(fileName);
+        }
+
+        async function bulkPickTasks() {
+            if (virtualTasks.length === 0) {
+                return alert('No hay tareas de picking activas para procesar.');
+            }
+
+            const tasksWithIssues = [];
+            for (const task of virtualTasks) {
+                const bestLocation = getBestLocationForProduct(task.idProducto);
+                const stockAtLocation = bestLocation ? (fullData.stockPorUbicacion.get(String(task.idProducto))?.get(bestLocation) || 0) : 0;
+                
+                if (!bestLocation || stockAtLocation < task.totalQuantity) {
+                    tasksWithIssues.push({
+                        id: task.idProducto,
+                        name: task.nombre,
+                        required: task.totalQuantity,
+                        available: stockAtLocation,
+                        location: bestLocation || 'N/A'
+                    });
+                }
+            }
+
+            if (tasksWithIssues.length > 0) {
+                let errorMessage = 'No se puede realizar el picking masivo. Hay tareas sin stock suficiente:\n\n';
+                tasksWithIssues.forEach(issue => {
+                    errorMessage += `- Producto: ${issue.name} (ID: ${issue.id})\n  Necesario: ${issue.required}, Disponible: ${issue.available} en ${issue.location}\n`;
+                });
+                alert(errorMessage + '\nPor favor, realice los ajustes necesarios o gestione las órdenes individualmente.');
+                return;
+            }
+
+            if (!confirm(`¿Confirma el picking masivo de ${virtualTasks.length} tareas? Se realizarán los movimientos de stock correspondientes.`)) {
+                return;
+            }
+            
+            showLoading(true, `Procesando picking masivo para ${virtualTasks.length} tareas...`);
+            
+            const allMovementRows = [];
+            const allOrderUpdates = [];
+            const timestamp = getTimestamp();
+
+            for (const task of virtualTasks) {
+                const bestLocation = getBestLocationForProduct(task.idProducto);
+                
+                allMovementRows.push([
+                    task.idProducto, 
+                    task.nombre, 
+                    -Math.abs(task.totalQuantity), 
+                    bestLocation, 
+                    CONSTANTS.MOVEMENT_TYPE.PICKING, 
+                    timestamp
+                ]);
+                
+                task.orders.forEach(order => {
+                    allOrderUpdates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${order.index + 2}`,
+                        values: [[CONSTANTS.STATUS.PICKED]]
+                    });
+                });
+            }
+
+            try {
+                if (allMovementRows.length > 0 && allOrderUpdates.length > 0) {
+                     await Promise.all([
+                        appendToSheet(CONSTANTS.RANGES.movimientos, allMovementRows),
+                        batchUpdateSheet(allOrderUpdates)
+                    ]);
+                }
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
         }
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
