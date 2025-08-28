@@ -1640,7 +1640,7 @@
                 </div>
             </div>`;
             createAndShowModal(CONSTANTS.IDS.MANUAL_ORDER_MODAL, modalHTML);
-            addManualOrderLine(); 
+            addManualOrderLine();
         }
         async function saveManualOrder() {
             const idVenta = document.getElementById('manualOrderIdVenta').value.trim();
@@ -1650,6 +1650,12 @@
 
             if (!idVenta || !cliente || !canal) {
                 return alert('Por favor, complete todos los campos de la orden: ID Venta, Cliente y Canal.');
+            }
+
+            // MODIFICADO: Se añade la validación de ID de Venta duplicado
+            const existingOrderIds = new Set((fullData.ordenes || []).map(o => o[1]));
+            if (existingOrderIds.has(idVenta)) {
+                return alert(`Error: El ID de Venta "${idVenta}" ya existe. Por favor, ingrese un ID único.`);
             }
 
             const timestamp = getTimestamp();
