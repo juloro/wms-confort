@@ -1083,10 +1083,12 @@
             const note = 'Control rápido sin diferencias';
 
             for (const loc of locations) {
+                let hasStockInLoc = false;
                 fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
                     if (locationsMap.has(loc)) {
                         const qty = locationsMap.get(loc);
                         if (qty > 0) {
+                            hasStockInLoc = true;
                             const product = fullData.productos.find(p => p[0] === productId);
                             if (product) {
                                 controlRows.push([
@@ -1097,19 +1099,33 @@
                         }
                     }
                 });
-            }
 
-            if (controlRows.length === 0) {
-                // Si la ubicación está vacía, igual registramos un control para actualizar la fecha
-                controlRows.push([
-                    controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT,
-                    '', 'UBICACIÓN VACÍA', locations[0], 0, 0, 0, note
-                ]);
+                if (!hasStockInLoc) {
+                     controlRows.push([
+                        controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT,
+                        '', 'UBICACIÓN VACÍA', loc, 0, 0, 0, note
+                    ]);
+                }
             }
 
             try {
                 await appendToSheet(CONSTANTS.RANGES.controles, controlRows);
-                await loadInitialData();
+                
+                // --- INICIO DE LA CORRECCIÓN ---
+                // Actualización optimista del estado local para evitar la latencia de la API
+                controlRows.forEach(row => fullData.controles.push(row));
+                
+                // Reprocesar solo los datos de control y volver a renderizar las vistas afectadas
+                processControlDates();
+                renderLocationsView(); // Actualiza el mapa de ubicaciones
+                renderDashboardView(); // El dashboard también tiene el gráfico de controles
+                
+                // Opcional: si la vista de controles está activa, actualizarla
+                if (document.getElementById('controles').classList.contains('active')) {
+                    renderControlsView();
+                }
+                // --- FIN DE LA CORRECCIÓN ---
+
             } catch (err) {
                 handleApiError(err);
             } finally {
@@ -1120,14 +1136,12 @@
         function showLocationGroupDetailsModal(locationsStr, label) {
             const locations = locationsStr.split(',');
             const stockInGroup = new Map();
-            let hasStock = false;
 
             for (const loc of locations) {
                 fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
                     if (locationsMap.has(loc)) {
                         const qty = locationsMap.get(loc);
                         if (qty > 0) {
-                            hasStock = true;
                             const product = fullData.productos.find(p => p[0] === productId);
                             if (product) {
                                 const currentStock = stockInGroup.get(productId) || { name: product[1], qty: 0 };
@@ -3257,4 +3271,3 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
