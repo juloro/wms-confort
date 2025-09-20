@@ -440,15 +440,21 @@
 
         function processControlDates() {
             lastControlDates.clear();
-            const locationControls = (fullData.controles || []).filter(c => c[2] === CONSTANTS.CONTROL_TYPE.LOCATION_COUNT);
-
-            for (const control of locationControls) {
+            
+            for (const control of (fullData.controles || [])) {
                 const dateStr = control[1]; 
                 const location = control[5];
                 if (!dateStr || !location) continue;
                 
-                const [day, month, year] = dateStr.split(' ')[0].split('/');
-                const controlDate = new Date(`${year}-${month}-${day}T${dateStr.split(' ')[1] || '00:00'}:00`);
+                // Formato esperado: "dd/mm/yyyy HH:MM"
+                const parts = dateStr.split(' ');
+                const dateParts = parts[0].split('/');
+                if(dateParts.length < 3) continue;
+
+                const timeParts = parts.length > 1 ? parts[1].split(':') : ['0', '0'];
+                
+                // Formato ISO: YYYY-MM-DDTHH:MM:SS
+                const controlDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T${timeParts[0]}:${timeParts[1]}:00`);
                 
                 if (isNaN(controlDate.getTime())) continue;
 
@@ -1064,16 +1070,65 @@
             </tr>`;
         }
 
-        function showLocationGroupDetailsModal(locationsStr, label) {
+        async function saveDirectControl(locationsStr) {
             const locations = locationsStr.split(',');
-            const stockInGroup = new Map();
+            if (locations.length === 0) return;
+
+            activeModals[CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL]?.hide();
+            showLoading(true, 'Registrando control rápido...');
+
+            const controlRows = [];
+            const timestamp = getTimestamp();
+            const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
+            const note = 'Control rápido sin diferencias';
 
             for (const loc of locations) {
                 fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
                     if (locationsMap.has(loc)) {
                         const qty = locationsMap.get(loc);
-                        if(qty > 0) {
-                             const product = fullData.productos.find(p => p[0] === productId);
+                        if (qty > 0) {
+                            const product = fullData.productos.find(p => p[0] === productId);
+                            if (product) {
+                                controlRows.push([
+                                    controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT,
+                                    productId, product[1], loc, qty, qty, 0, note
+                                ]);
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (controlRows.length === 0) {
+                // Si la ubicación está vacía, igual registramos un control para actualizar la fecha
+                controlRows.push([
+                    controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT,
+                    '', 'UBICACIÓN VACÍA', locations[0], 0, 0, 0, note
+                ]);
+            }
+
+            try {
+                await appendToSheet(CONSTANTS.RANGES.controles, controlRows);
+                await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showLocationGroupDetailsModal(locationsStr, label) {
+            const locations = locationsStr.split(',');
+            const stockInGroup = new Map();
+            let hasStock = false;
+
+            for (const loc of locations) {
+                fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
+                    if (locationsMap.has(loc)) {
+                        const qty = locationsMap.get(loc);
+                        if (qty > 0) {
+                            hasStock = true;
+                            const product = fullData.productos.find(p => p[0] === productId);
                             if (product) {
                                 const currentStock = stockInGroup.get(productId) || { name: product[1], qty: 0 };
                                 currentStock.qty += qty;
@@ -1083,9 +1138,9 @@
                     }
                 });
             }
-            
+
             const productRows = [...stockInGroup.entries()]
-                .sort((a,b) => a[1].name.localeCompare(b[1].name))
+                .sort((a, b) => a[1].name.localeCompare(b[1].name))
                 .map(([id, data]) => `
                 <tr><td>${id}</td><td>${sanitizeHTML(data.name)}</td><td class="text-end">${data.qty}</td></tr>`).join('');
 
@@ -1093,9 +1148,15 @@
             let lastControlHTML = '<p>No se han registrado controles para esta ubicación o grupo.</p>';
             if (datesInGroup.length > 0) {
                 const mostRecentDate = new Date(Math.max(...datesInGroup));
-                const diffDays = Math.ceil(Math.abs(new Date() - mostRecentDate) / (1000 * 60 * 60 * 24));
+                const diffDays = Math.ceil((new Date() - mostRecentDate) / (1000 * 60 * 60 * 24));
                 lastControlHTML = `<p><strong>Último control:</strong> ${mostRecentDate.toLocaleDateString('es-AR')} (hace ${diffDays} días)</p>`;
             }
+
+            const confirmButtonHTML = `
+                <button type="button" class="btn btn-success" data-action="save-direct-control" data-locations="${sanitizeHTML(locationsStr)}">
+                    <span class="material-icons align-middle" style="font-size: 1.1rem;">check_circle_outline</span>
+                    Confirmar Stock Físico (Sin Diferencias)
+                </button>`;
 
             const modalHTML = `
             <div class="modal fade" id="${CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL}" tabindex="-1">
@@ -1107,27 +1168,31 @@
                         </div>
                         <div class="modal-body">
                             ${lastControlHTML}
-                            <h6>Stock Actual</h6>
+                            <h6>Stock Actual en Sistema</h6>
                             <div class="table-responsive" style="max-height: 50vh;">
                                 <table class="table table-sm table-striped">
                                     <thead class="table-light"><tr><th>ID Producto</th><th>Nombre</th><th class="text-end">Cantidad</th></tr></thead>
-                                    <tbody>${productRows || '<tr><td colspan="3" class="text-center">No hay stock en esta ubicación.</td></tr>'}</tbody>
+                                    <tbody>${productRows || `<tr><td colspan="3" class="text-center text-muted">No hay stock registrado en esta ubicación.</td></tr>`}</tbody>
                                 </table>
                             </div>
                         </div>
-                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                            <button type="button" class="btn btn-primary" data-action="download-location-detail-pdf" data-label="${sanitizeHTML(label)}" data-locations="${sanitizeHTML(locationsStr)}">
-                                <span class="material-icons align-middle" style="font-size: 1.1rem;">picture_as_pdf</span>
-                                Descargar PDF
-                            </button>
+                         <div class="modal-footer justify-content-between">
+                            <div>
+                                <button type="button" class="btn btn-secondary" data-action="download-location-detail-pdf" data-label="${sanitizeHTML(label)}" data-locations="${sanitizeHTML(locationsStr)}">
+                                    <span class="material-icons align-middle" style="font-size: 1.1rem;">picture_as_pdf</span>
+                                    Descargar PDF
+                                </button>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                ${confirmButtonHTML}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>`;
             createAndShowModal(CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL, modalHTML);
         }
-
         function showNewProductModal() {
             let maxId = (fullData.productos || []).reduce((max, p) => Math.max(max, parseInt(p[0], 10) || 0), 0);
             const newId = maxId + 1;
@@ -2327,6 +2392,7 @@
                 'bulk-generate-remito': bulkGenerateRemito,
                 'bulk-pick-tasks': bulkPickTasks,
                 'add-manual-order-line': addManualOrderLine,
+                'save-direct-control': () => saveDirectControl(data.locations),
             };
             if (actionMap[action]) actionMap[action]();
         }
