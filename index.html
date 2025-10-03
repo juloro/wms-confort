@@ -805,6 +805,13 @@
 
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
+                
+                // --- INICIO DE LA MODIFICACIÓN ---
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'SHOWROOM1', count: 1 },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'SHOWROOM2', count: 1 },
+                { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'SHOWROOM3', count: 1 },
+                // --- FIN DE LA MODIFICACIÓN ---
+
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'A90/94', prefix: 'A', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B90/94', prefix: 'B', start: 90, count: 5 }, { type: 'block', label: 'C90/94', prefix: 'C', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D90/94', prefix: 'D', start: 90, count: 5 }, { type: 'block', label: 'E90/94', prefix: 'E', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F90/94', prefix: 'F', start: 90, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'A80/84', prefix: 'A', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B80/84', prefix: 'B', start: 80, count: 5 }, { type: 'block', label: 'C80/84', prefix: 'C', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D80/84', prefix: 'D', start: 80, count: 5 }, { type: 'block', label: 'E80/84', prefix: 'E', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F80/84', prefix: 'F', start: 80, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
@@ -828,7 +835,7 @@
 
                 if (item.count === 1) {
                     let locationId;
-                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICE', 'OUTLET'];
+                    const specialLabels = ['Z00 PISO', 'ZLUCAS', 'SERVICE', 'OUTLET', 'SHOWROOM1', 'SHOWROOM2', 'SHOWROOM3'];
                     if (specialLabels.includes(item.label)) {
                         locationId = item.label === 'Z00 PISO' ? 'Z00' : item.label;
                     } else {
