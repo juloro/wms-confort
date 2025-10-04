@@ -153,6 +153,9 @@
         .map-block-green { background-color: #198754; }
         .map-block-yellow { background-color: #ffc107; color: #000; }
         .map-block-red { background-color: #dc3545; }
+        .map-block-empty { background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da; }
+        .map-location-cell.map-block-empty { border: 1px dashed #ced4da; }
+
         .span-1 { grid-column: span 1; }
         .span-2 { grid-column: span 2; }
         .span-9 { grid-column: span 9; }
@@ -318,6 +321,7 @@
         let activeModals = {};
         let virtualTasks = [];
         let validLocations = new Set();
+        let locationsWithStock = new Set();
         let productSort = { by: 'id', ascending: true };
         let lastControlDates = new Map();
 
@@ -404,6 +408,8 @@
         function processAndCalculateStock() {
             fullData.stockTotal.clear();
             fullData.stockPorUbicacion.clear();
+            locationsWithStock.clear();
+
             (fullData.movimientos || []).forEach(mov => {
                 const id = String(mov[0] || '').trim();
                 if (!id) return;
@@ -414,7 +420,16 @@
                 const ubicacionesProducto = fullData.stockPorUbicacion.get(id);
                 ubicacionesProducto.set(ubicacion, (ubicacionesProducto.get(ubicacion) || 0) + cantidad);
             });
+            
             validLocations = new Set((fullData.ubicaciones || []).flat().map(loc => String(loc || '').trim()).filter(Boolean));
+
+            fullData.stockPorUbicacion.forEach((locationsMap) => {
+                locationsMap.forEach((stock, location) => {
+                    if (stock > 0) {
+                        locationsWithStock.add(location);
+                    }
+                });
+            });
         }
         
         function processRemitos() {
@@ -839,14 +854,20 @@
                         locationId = `${item.prefix}${String(item.start).padStart(2, '0')}`;
                     }
                     
-                    const controlDate = lastControlDates.get(locationId);
-                    let colorClass = 'map-block-red';
-                    if (controlDate) {
-                        const diffTime = Math.abs(today - controlDate);
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if (diffDays <= 30) colorClass = 'map-block-green';
-                        else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                    let colorClass;
+                    if (!locationsWithStock.has(locationId)) {
+                        colorClass = 'map-block-empty';
+                    } else {
+                        colorClass = 'map-block-red'; // Default para ubicaciones CON stock
+                        const controlDate = lastControlDates.get(locationId);
+                        if (controlDate) {
+                            const diffTime = Math.abs(today - controlDate);
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            if (diffDays <= 30) colorClass = 'map-block-green';
+                            else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                        }
                     }
+
                     return `<div class="map-block ${colorClass} ${item.span ? `span-${item.span}`: ''}" data-action="show-location-group-details" data-locations="${locationId}" data-label="${item.label}">
                         ${item.label}
                     </div>`;
@@ -855,14 +876,21 @@
                 let locationsHTML = '';
                 for (let i = 0; i < item.count; i++) {
                     const locationId = `${item.prefix}${String(item.start + i)}`;
-                    const controlDate = lastControlDates.get(locationId);
-                    let colorClass = 'map-block-red';
-                    if (controlDate) {
-                        const diffTime = Math.abs(today - controlDate);
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if (diffDays <= 30) colorClass = 'map-block-green';
-                        else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                    
+                    let colorClass;
+                    if (!locationsWithStock.has(locationId)) {
+                        colorClass = 'map-block-empty';
+                    } else {
+                        colorClass = 'map-block-red';
+                        const controlDate = lastControlDates.get(locationId);
+                        if (controlDate) {
+                            const diffTime = Math.abs(today - controlDate);
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            if (diffDays <= 30) colorClass = 'map-block-green';
+                            else if (diffDays <= 59) colorClass = 'map-block-yellow';
+                        }
                     }
+
                     locationsHTML += `<div class="map-location-cell ${colorClass}" data-action="show-location-group-details" data-locations="${locationId}" data-label="${locationId}">
                         ${locationId}
                     </div>`;
@@ -875,6 +903,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="mb-0">Mapa de Ubicaciones</h2>
                     <div class="d-flex align-items-center">
+                        <span class="badge me-2" style="background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da;">Libre</span>
                         <span class="badge me-2 map-block-green">Reciente (&lt;30d)</span>
                         <span class="badge me-2 map-block-yellow">Advertencia (31-59d)</span>
                         <span class="badge map-block-red">Vencido (&ge;60d)</span>
@@ -2954,11 +2983,10 @@
             doc.setFontSize(12);
             doc.text(`Número: ${remitoId}`, 14, 32);
             doc.setFontSize(10);
-            doc.text(`Fecha: ${data.fecha}`, 14, 38);
-            doc.text(`Tipo: ${data.tipo}`, 14, 43);
-            doc.text(`Motivo: ${data.motivo}`, 14, 48);
-            doc.text(`Origen/Destino: ${data.origen}`, 14, 53);
-            doc.text(`Unidades Totales: ${data.totalUnidades}`, 14, 58);
+            doc.text(`Fecha: ${data.fecha}`, 14, 43);
+            doc.text(`Tipo: ${data.tipo}`, 14, 48);
+            doc.text(`Motivo: ${data.motivo}`, 14, 53);
+            doc.text(`Origen/Destino: ${data.origen}`, 14, 58);
 
             doc.autoTable({
                 head: [['ID Producto', 'Nombre', 'Cantidad']],
