@@ -1166,6 +1166,19 @@
                 showLoading(false);
             }
         }
+        
+        function handleModifyStock(location) {
+            const detailModal = activeModals[CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL];
+            if (detailModal) {
+                const detailModalElement = document.getElementById(CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL);
+                detailModalElement.addEventListener('hidden.bs.modal', () => {
+                    showLocationControlModal(location);
+                }, { once: true });
+                detailModal.hide();
+            } else {
+                showLocationControlModal(location);
+            }
+        }
 
         function showLocationGroupDetailsModal(locationsStr, label) {
             const locations = locationsStr.split(',');
@@ -1200,12 +1213,6 @@
                 lastControlHTML = `<p><strong>Último control:</strong> ${mostRecentDate.toLocaleDateString('es-AR')} (hace ${diffDays} días)</p>`;
             }
 
-            const confirmButtonHTML = `
-                <button type="button" class="btn btn-success" data-action="save-direct-control" data-locations="${sanitizeHTML(locationsStr)}">
-                    <span class="material-icons align-middle" style="font-size: 1.1rem;">check_circle_outline</span>
-                    Confirmar Stock Físico (Sin Diferencias)
-                </button>`;
-
             const modalHTML = `
             <div class="modal fade" id="${CONSTANTS.IDS.LOCATION_GROUP_DETAIL_MODAL}" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1233,7 +1240,14 @@
                             </div>
                             <div>
                                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                ${confirmButtonHTML}
+                                <button type="button" class="btn btn-warning" data-action="show-modify-stock-modal" data-locations="${sanitizeHTML(locationsStr)}">
+                                    <span class="material-icons align-middle" style="font-size: 1.1rem;">rule</span>
+                                    Modificar Stock
+                                </button>
+                                <button type="button" class="btn btn-success" data-action="save-direct-control" data-locations="${sanitizeHTML(locationsStr)}">
+                                    <span class="material-icons align-middle" style="font-size: 1.1rem;">check_circle_outline</span>
+                                    Confirmar Stock
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1765,7 +1779,6 @@
                 return alert('Por favor, complete todos los campos de la orden: ID Venta, Cliente y Canal.');
             }
 
-            // MODIFICADO: Se añade la validación de ID de Venta duplicado
             const existingOrderIds = new Set((fullData.ordenes || []).map(o => o[1]));
             if (existingOrderIds.has(idVenta)) {
                 return alert(`Error: El ID de Venta "${idVenta}" ya existe. Por favor, ingrese un ID único.`);
@@ -1861,7 +1874,7 @@
             resultsContainer.style.display = 'none';
         }
 
-        function showLocationControlModal() {
+        function showLocationControlModal(preselectedLocation = null) {
             const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
             const modalHTML = `
             <div class="modal fade" id="${CONSTANTS.IDS.LOCATION_CONTROL_MODAL}" tabindex="-1">
@@ -1912,6 +1925,15 @@
                 </div>
             </div>`;
             createAndShowModal(CONSTANTS.IDS.LOCATION_CONTROL_MODAL, modalHTML);
+
+            if (preselectedLocation) {
+                const locationInput = document.getElementById('control-location-select');
+                if (locationInput) {
+                    locationInput.value = preselectedLocation;
+                    locationInput.disabled = true;
+                    populateLocationControlModal(preselectedLocation);
+                }
+            }
         }
 
         function populateLocationControlModal(location) {
@@ -2418,7 +2440,7 @@
                 'resolve-incident': () => resolveIncident(parseInt(data.orderIndex, 10)),
                 'show-add-order-modal': () => showAddOrderModal(data.orderIndex),
                 'save-order-number': () => saveOrderNumber(data.orderIndex),
-                'show-location-control-modal': showLocationControlModal,
+                'show-location-control-modal': () => showLocationControlModal(),
                 'add-location-control-line': () => addLocationControlLine(),
                 'save-location-control': saveLocationControl,
                 'select-product-for-control': () => selectProductForControl(data.productId, data.productName, data.targetLineId),
@@ -2441,6 +2463,7 @@
                 'bulk-pick-tasks': bulkPickTasks,
                 'add-manual-order-line': addManualOrderLine,
                 'save-direct-control': () => saveDirectControl(data.locations),
+                'show-modify-stock-modal': () => handleModifyStock(data.locations),
             };
             if (actionMap[action]) actionMap[action]();
         }
