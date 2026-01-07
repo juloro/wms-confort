@@ -3216,32 +3216,11 @@
                 return alert('No hay tareas de picking activas para procesar.');
             }
 
-            const tasksWithIssues = [];
-            for (const task of virtualTasks) {
-                const bestLocation = getBestLocationForProduct(task.idProducto);
-                const stockAtLocation = bestLocation ? (fullData.stockPorUbicacion.get(String(task.idProducto))?.get(bestLocation) || 0) : 0;
-                
-                if (!bestLocation || stockAtLocation < task.totalQuantity) {
-                    tasksWithIssues.push({
-                        id: task.idProducto,
-                        name: task.nombre,
-                        required: task.totalQuantity,
-                        available: stockAtLocation,
-                        location: bestLocation || 'N/A'
-                    });
-                }
-            }
-
-            if (tasksWithIssues.length > 0) {
-                let errorMessage = 'No se puede realizar el picking masivo. Hay tareas sin stock suficiente:\n\n';
-                tasksWithIssues.forEach(issue => {
-                    errorMessage += `- Producto: ${issue.name} (ID: ${issue.id})\n  Necesario: ${issue.required}, Disponible: ${issue.available} en ${issue.location}\n`;
-                });
-                alert(errorMessage + '\nPor favor, realice los ajustes necesarios o gestione las órdenes individualmente.');
-                return;
-            }
-
-            if (!confirm(`¿Confirma el picking masivo de ${virtualTasks.length} tareas? Se realizarán los movimientos de stock correspondientes.`)) {
+            // Cambiamos la validación restrictiva por una simple confirmación informativa
+            const msg = `¿Confirma el picking masivo de ${virtualTasks.length} tareas?\n\n` +
+                        `Nota: Los productos sin ubicación sugerida (S/U) se descontarán automáticamente de ${CONSTANTS.DEFAULT_INGRESS_LOCATION}.`;
+            
+            if (!confirm(msg)) {
                 return;
             }
             
@@ -3252,17 +3231,25 @@
             const timestamp = getTimestamp();
 
             for (const task of virtualTasks) {
-                const bestLocation = getBestLocationForProduct(task.idProducto);
+                // Intentamos obtener la mejor ubicación
+                let pickLocation = getBestLocationForProduct(task.idProducto);
                 
+                // Si no hay ubicación sugerida (S/U), forzamos el descuento en Z00
+                if (!pickLocation) {
+                    pickLocation = CONSTANTS.DEFAULT_INGRESS_LOCATION; // 'Z00'
+                }
+                
+                // Registramos el movimiento de salida (permitiendo negativos)
                 allMovementRows.push([
                     task.idProducto, 
                     task.nombre, 
                     -Math.abs(task.totalQuantity), 
-                    bestLocation, 
+                    pickLocation, 
                     CONSTANTS.MOVEMENT_TYPE.PICKING, 
                     timestamp
                 ]);
                 
+                // Actualizamos el estado de cada orden incluida en esta tarea
                 task.orders.forEach(order => {
                     allOrderUpdates.push({
                         range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${order.index + 2}`,
@@ -3278,6 +3265,7 @@
                         batchUpdateSheet(allOrderUpdates)
                     ]);
                 }
+                // Recargamos los datos para ver los nuevos saldos (negativos en Z00)
                 await loadInitialData();
             } catch (err) {
                 handleApiError(err);
@@ -3285,7 +3273,6 @@
                 showLoading(false);
             }
         }
-
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
         
         document.addEventListener('DOMContentLoaded', () => {
@@ -3327,3 +3314,4 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
