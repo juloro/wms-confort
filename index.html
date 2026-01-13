@@ -3243,58 +3243,95 @@
             doc.save(fileName);
         }
 
-        async function bulkPickTasks() {
+async function bulkPickTasks() {
             if (virtualTasks.length === 0) {
                 return alert('No hay tareas de picking activas para procesar.');
             }
 
-            const tasksWithIssues = [];
+            // 1. Análisis previo para confirmar al usuario
+            let tasksWithStock = 0;
+            let tasksNeedIngress = 0;
+            
             for (const task of virtualTasks) {
                 const bestLocation = getBestLocationForProduct(task.idProducto);
+                // Obtenemos el stock específico en la mejor ubicación disponible
                 const stockAtLocation = bestLocation ? (fullData.stockPorUbicacion.get(String(task.idProducto))?.get(bestLocation) || 0) : 0;
                 
-                if (!bestLocation || stockAtLocation < task.totalQuantity) {
-                    tasksWithIssues.push({
-                        id: task.idProducto,
-                        name: task.nombre,
-                        required: task.totalQuantity,
-                        available: stockAtLocation,
-                        location: bestLocation || 'N/A'
-                    });
+                if (stockAtLocation >= task.totalQuantity) {
+                    tasksWithStock++;
+                } else {
+                    tasksNeedIngress++;
                 }
             }
 
-            if (tasksWithIssues.length > 0) {
-                let errorMessage = 'No se puede realizar el picking masivo. Hay tareas sin stock suficiente:\n\n';
-                tasksWithIssues.forEach(issue => {
-                    errorMessage += `- Producto: ${issue.name} (ID: ${issue.id})\n  Necesario: ${issue.required}, Disponible: ${issue.available} en ${issue.location}\n`;
-                });
-                alert(errorMessage + '\nPor favor, realice los ajustes necesarios o gestione las órdenes individualmente.');
-                return;
+            let confirmMsg = `Se procesarán ${virtualTasks.length} tareas de picking.\n\n`;
+            confirmMsg += `- ${tasksWithStock} productos con stock suficiente.\n`;
+            if (tasksNeedIngress > 0) {
+                confirmMsg += `- ${tasksNeedIngress} productos SIN stock suficiente (se realizará un INGRESO AUTOMÁTICO de la diferencia en ${CONSTANTS.DEFAULT_INGRESS_LOCATION}).\n`;
             }
+            confirmMsg += `\n¿Desea continuar con el proceso masivo?`;
 
-            if (!confirm(`¿Confirma el picking masivo de ${virtualTasks.length} tareas? Se realizarán los movimientos de stock correspondientes.`)) {
-                return;
-            }
+            if (!confirm(confirmMsg)) return;
             
-            showLoading(true, `Procesando picking masivo para ${virtualTasks.length} tareas...`);
+            showLoading(true, `Procesando picking masivo...`);
             
             const allMovementRows = [];
             const allOrderUpdates = [];
             const timestamp = getTimestamp();
 
             for (const task of virtualTasks) {
+                const required = task.totalQuantity;
                 const bestLocation = getBestLocationForProduct(task.idProducto);
+                const stockAtLocation = bestLocation ? (fullData.stockPorUbicacion.get(String(task.idProducto))?.get(bestLocation) || 0) : 0;
                 
-                allMovementRows.push([
-                    task.idProducto, 
-                    task.nombre, 
-                    -Math.abs(task.totalQuantity), 
-                    bestLocation, 
-                    CONSTANTS.MOVEMENT_TYPE.PICKING, 
-                    timestamp
-                ]);
+                if (stockAtLocation >= required) {
+                    // CASO A: Stock suficiente. Picking normal desde la ubicación.
+                    allMovementRows.push([
+                        task.idProducto, 
+                        task.nombre, 
+                        -Math.abs(required), 
+                        bestLocation, 
+                        CONSTANTS.MOVEMENT_TYPE.PICKING, 
+                        timestamp
+                    ]);
+                } else {
+                    // CASO B: Stock insuficiente. Ingreso de ajuste + Picking dividido.
+                    const missing = required - stockAtLocation;
+                    
+                    // 1. Ingreso automático de lo que falta en la ubicación por defecto (Z00)
+                    allMovementRows.push([
+                        task.idProducto,
+                        task.nombre,
+                        missing,
+                        CONSTANTS.DEFAULT_INGRESS_LOCATION,
+                        CONSTANTS.MOVEMENT_TYPE.INGRESO,
+                        timestamp
+                    ]);
+
+                    // 2. Picking de lo que acabamos de ingresar (desde Z00)
+                    allMovementRows.push([
+                        task.idProducto,
+                        task.nombre,
+                        -Math.abs(missing),
+                        CONSTANTS.DEFAULT_INGRESS_LOCATION,
+                        CONSTANTS.MOVEMENT_TYPE.PICKING,
+                        timestamp
+                    ]);
+
+                    // 3. Picking de lo que ya existía (desde la ubicación original, si había algo)
+                    if (stockAtLocation > 0) {
+                        allMovementRows.push([
+                            task.idProducto,
+                            task.nombre,
+                            -Math.abs(stockAtLocation),
+                            bestLocation,
+                            CONSTANTS.MOVEMENT_TYPE.PICKING,
+                            timestamp
+                        ]);
+                    }
+                }
                 
+                // Preparar actualización de estado de las órdenes involucradas a "PICKEADO"
                 task.orders.forEach(order => {
                     allOrderUpdates.push({
                         range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${order.index + 2}`,
@@ -3311,6 +3348,7 @@
                     ]);
                 }
                 await loadInitialData();
+                alert('Proceso masivo completado exitosamente.');
             } catch (err) {
                 handleApiError(err);
             } finally {
@@ -3399,3 +3437,4 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
