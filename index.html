@@ -810,23 +810,24 @@
             document.getElementById('controls-table').innerHTML = (fullData.controles || []).slice().reverse().map(getControlRowHTML).join('');
         }
 
-        function renderLocationsView() {
+       function renderLocationsView() {
             const container = DOM.views.ubicaciones;
             
-            // La grilla CSS tiene 11 columnas visuales:
-            // 1(A) - 0.5(Pasillo) - 1(B) - 1(C) - 0.5(Pasillo) - 1(D) - 1(E) - 0.5(Pasillo) - 1(F) - 0.5(Pasillo) - 1(G)
+            // Definición del Layout
+            // Top (Vertical): A, B, C, D, E, F, G (Mantenemos la estructura de columnas)
+            // Bottom (Horizontal): H, I, J, K, L, M, N, O, P (Filas perpendiculares)
             
             const mapLayout = [
-                // --- BLOQUE SUPERIOR (A-G) ---
+                // --- CABECERAS SUPERIORES (A-G) ---
                 { type: 'header', label: 'A' }, { type: 'aisle' }, { type: 'header', label: 'B' }, { type: 'header', label: 'C' }, { type: 'aisle' }, { type: 'header', label: 'D' }, { type: 'header', label: 'E' }, { type: 'aisle' }, { type: 'header', label: 'F' }, { type: 'aisle' }, { type: 'header', label: 'G' },
                 
+                // --- BLOQUES VERTICALES (Filas 140 a 10) ---
                 { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F140/144', prefix: 'F', start: 140, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'aisle' }, { type: 'block', label: 'F130/134', prefix: 'F', start: 130, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
 
                 { type: 'block', label: 'A120/124', prefix: 'A', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B120/124', prefix: 'B', start: 120, count: 5 }, { type: 'block', label: 'C120/124', prefix: 'C', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D120/124', prefix: 'D', start: 120, count: 5 }, { type: 'block', label: 'E120/124', prefix: 'E', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F120/124', prefix: 'F', start: 120, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'SERVICE', count: 1 },
                 { type: 'block', label: 'A110/114', prefix: 'A', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B110/114', prefix: 'B', start: 110, count: 5 }, { type: 'block', label: 'C110/114', prefix: 'C', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D110/114', prefix: 'D', start: 110, count: 5 }, { type: 'block', label: 'E110/114', prefix: 'E', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F110/114', prefix: 'F', start: 110, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'OUTLET', count: 1 },
                 
-                // SHOWROOMS ELIMINADOS: Se dejan como 'aisle' para mantener la estructura de la columna G
                 { type: 'block', label: 'A100/104', prefix: 'A', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B100/104', prefix: 'B', start: 100, count: 5 }, { type: 'block', label: 'C100/104', prefix: 'C', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D100/104', prefix: 'D', start: 100, count: 5 }, { type: 'block', label: 'E100/104', prefix: 'E', start: 100, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F100/104', prefix: 'F', start: 100, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'A90/94', prefix: 'A', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B90/94', prefix: 'B', start: 90, count: 5 }, { type: 'block', label: 'C90/94', prefix: 'C', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D90/94', prefix: 'D', start: 90, count: 5 }, { type: 'block', label: 'E90/94', prefix: 'E', start: 90, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F90/94', prefix: 'F', start: 90, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
                 { type: 'block', label: 'A80/84', prefix: 'A', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'B80/84', prefix: 'B', start: 80, count: 5 }, { type: 'block', label: 'C80/84', prefix: 'C', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'D80/84', prefix: 'D', start: 80, count: 5 }, { type: 'block', label: 'E80/84', prefix: 'E', start: 80, count: 5 }, { type: 'aisle' }, { type: 'block', label: 'F80/84', prefix: 'F', start: 80, count: 5 }, { type: 'aisle' }, { type: 'aisle' },
@@ -841,33 +842,86 @@
                 
                 // --- ZONA MEDIA ---
                 { type: 'block', label: 'JAULA00', prefix: 'JAULA', start: 0, count: 1, span: 1 }, { type: 'aisle' }, { type: 'block', label: 'Z00 PISO', prefix: 'Z', start: 0, count: 1, span: 9 },
-                // JAULA01 + espacio vacío (anteriormente ZLUCAS) ocupando todo el ancho restante para no romper la grilla
-                { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle' }, { type: 'aisle', span: 9 },
-
-                // Espacio separador antes de los nuevos racks
-                { type: 'aisle', span: 11 },
-
-                // --- NUEVO BLOQUE (H-M) ---
-                // Distribución para alinear con A-F:
-                // H(1) - ais - I(1) - J(1) - ais - K(1) - L(1) - ais - M(1) - ais - G_Space(1) = 11 items
-                
-                { type: 'header', label: 'H' }, { type: 'aisle' }, { type: 'header', label: 'I' }, { type: 'header', label: 'J' }, { type: 'aisle' }, { type: 'header', label: 'K' }, { type: 'header', label: 'L' }, { type: 'aisle' }, { type: 'header', label: 'M' }, { type: 'aisle' }, { type: 'aisle' },
-                
-                { type: 'block', label: 'H30/33', prefix: 'H', start: 30, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'I30/33', prefix: 'I', start: 30, count: 4 }, { type: 'block', label: 'J30/33', prefix: 'J', start: 30, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'K30/33', prefix: 'K', start: 30, count: 4 }, { type: 'block', label: 'L30/33', prefix: 'L', start: 30, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'M30/33', prefix: 'M', start: 30, count: 4 }, { type: 'aisle' }, { type: 'aisle' },
-                { type: 'block', label: 'H20/23', prefix: 'H', start: 20, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'I20/23', prefix: 'I', start: 20, count: 4 }, { type: 'block', label: 'J20/23', prefix: 'J', start: 20, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'K20/23', prefix: 'K', start: 20, count: 4 }, { type: 'block', label: 'L20/23', prefix: 'L', start: 20, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'M20/23', prefix: 'M', start: 20, count: 4 }, { type: 'aisle' }, { type: 'aisle' },
-                { type: 'block', label: 'H10/13', prefix: 'H', start: 10, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'I10/13', prefix: 'I', start: 10, count: 4 }, { type: 'block', label: 'J10/13', prefix: 'J', start: 10, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'K10/13', prefix: 'K', start: 10, count: 4 }, { type: 'block', label: 'L10/13', prefix: 'L', start: 10, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'M10/13', prefix: 'M', start: 10, count: 4 }, { type: 'aisle' }, { type: 'aisle' },
+                { type: 'block', label: 'JAULA01', prefix: 'JAULA', start: 1, count: 1, span: 1 }, { type: 'aisle', span: 10 },
 
                 // Espacio separador
                 { type: 'aisle', span: 11 },
 
-                // --- NUEVO BLOQUE (N-P) ---
-                // Distribución: N(1) - ais - O(1) - P(1) - ais - Vacio(6) = 11 items
+                // --- NUEVAS FILAS HORIZONTALES (H - P) ---
+                // Configuración: [HEADER] - [30s] - [20s] - [10s]
+                // Se usan spans para ocupar el ancho completo: Header(1) + Bloque(3) + Bloque(3) + Bloque(4) = 11 Columnas
                 
-                { type: 'header', label: 'N' }, { type: 'aisle' }, { type: 'header', label: 'O' }, { type: 'header', label: 'P' }, { type: 'aisle' }, { type: 'aisle', span: 6 },
+                // RACK H
+                { type: 'header', label: 'H' }, 
+                { type: 'block', label: 'H10/13', prefix: 'H', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'H20/23', prefix: 'H', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'H30/33', prefix: 'H', start: 30, count: 4, span: 4 },
                 
-                { type: 'block', label: 'N30/33', prefix: 'N', start: 30, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'O30/33', prefix: 'O', start: 30, count: 4 }, { type: 'block', label: 'P30/33', prefix: 'P', start: 30, count: 4 }, { type: 'aisle' }, { type: 'aisle', span: 6 },
-                { type: 'block', label: 'N20/23', prefix: 'N', start: 20, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'O20/23', prefix: 'O', start: 20, count: 4 }, { type: 'block', label: 'P20/23', prefix: 'P', start: 20, count: 4 }, { type: 'aisle' }, { type: 'aisle', span: 6 },
-                { type: 'block', label: 'N10/13', prefix: 'N', start: 10, count: 4 }, { type: 'aisle' }, { type: 'block', label: 'O10/13', prefix: 'O', start: 10, count: 4 }, { type: 'block', label: 'P10/13', prefix: 'P', start: 10, count: 4 }, { type: 'aisle' }, { type: 'aisle', span: 6 },
+                // Espacio entre racks
+                { type: 'aisle', span: 11 },
+
+                // RACK I
+                { type: 'header', label: 'I' }, 
+                { type: 'block', label: 'I10/13', prefix: 'I', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'I20/23', prefix: 'I', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'I30/33', prefix: 'I', start: 30, count: 4, span: 4 },
+                
+                 // Espacio
+                { type: 'aisle', span: 11 },
+
+                // RACK J
+                { type: 'header', label: 'J' }, 
+                { type: 'block', label: 'J10/13', prefix: 'J', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'J20/23', prefix: 'J', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'J30/33', prefix: 'J', start: 30, count: 4, span: 4 },
+                
+                { type: 'aisle', span: 11 },
+
+                // RACK K
+                { type: 'header', label: 'K' }, 
+                { type: 'block', label: 'K10/13', prefix: 'K', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'K20/23', prefix: 'K', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'K30/33', prefix: 'K', start: 30, count: 4, span: 4 },
+
+                { type: 'aisle', span: 11 },
+
+                // RACK L
+                { type: 'header', label: 'L' }, 
+                { type: 'block', label: 'L10/13', prefix: 'L', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'L20/23', prefix: 'L', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'L30/33', prefix: 'L', start: 30, count: 4, span: 4 },
+
+                { type: 'aisle', span: 11 },
+
+                // RACK M
+                { type: 'header', label: 'M' }, 
+                { type: 'block', label: 'M10/13', prefix: 'M', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'M20/23', prefix: 'M', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'M30/33', prefix: 'M', start: 30, count: 4, span: 4 },
+
+                { type: 'aisle', span: 11 },
+
+                // RACK N
+                { type: 'header', label: 'N' }, 
+                { type: 'block', label: 'N10/13', prefix: 'N', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'N20/23', prefix: 'N', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'N30/33', prefix: 'N', start: 30, count: 4, span: 4 },
+
+                { type: 'aisle', span: 11 },
+
+                // RACK O
+                { type: 'header', label: 'O' }, 
+                { type: 'block', label: 'O10/13', prefix: 'O', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'O20/23', prefix: 'O', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'O30/33', prefix: 'O', start: 30, count: 4, span: 4 },
+
+                { type: 'aisle', span: 11 },
+
+                // RACK P
+                { type: 'header', label: 'P' }, 
+                { type: 'block', label: 'P10/13', prefix: 'P', start: 10, count: 4, span: 3 },
+                { type: 'block', label: 'P20/23', prefix: 'P', start: 20, count: 4, span: 3 },
+                { type: 'block', label: 'P30/33', prefix: 'P', start: 30, count: 4, span: 4 },
             ];
 
             const mapHTML = mapLayout.map(item => {
@@ -931,7 +985,12 @@
 
             }).join('');
 
+            // Inyectamos estilos para span-3 y span-4 que no estaban definidos originalmente
             container.innerHTML = `
+                <style>
+                    .span-3 { grid-column: span 3; }
+                    .span-4 { grid-column: span 4; }
+                </style>
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="mb-0">Mapa de Ubicaciones</h2>
                     <div class="d-flex align-items-center">
@@ -3469,6 +3528,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
