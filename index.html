@@ -2510,11 +2510,153 @@
                 icon.textContent = productSort.ascending ? 'arrow_drop_up' : 'arrow_drop_down';
             }
         }
+        function downloadNewMovementRemito() {
+            try {
+                // 1. Validar librerías
+                if (!window.jspdf) return alert("Error: La librería PDF no se ha cargado correctamente.");
+
+                // 2. Recopilar datos del formulario
+                const remitoNum = document.getElementById('movementRef').value.trim() || 'S/N';
+                const destinatario = document.getElementById('movementOrigin').value.trim() || '---';
+                const tipoMovimiento = document.getElementById('movementType').value;
+                const motivo = document.getElementById('movementReason').value;
+                
+                // 3. Recopilar productos
+                const lines = document.querySelectorAll('.movement-product-line');
+                const items = [];
+                
+                lines.forEach(line => {
+                    const idInput = line.querySelector('.product-id-input');
+                    const nameInput = line.querySelector('.product-name-input');
+                    const qtyInput = line.querySelector('.product-qty-input');
+
+                    if (idInput && nameInput && qtyInput) {
+                        const id = idInput.value;
+                        const name = nameInput.value || '---';
+                        const qty = qtyInput.value;
+
+                        if (id && qty && parseInt(qty) > 0) {
+                            items.push([id, name, qty]);
+                        }
+                    }
+                });
+
+                if (items.length === 0) {
+                    return alert("Debe agregar al menos un producto con cantidad válida para generar el remito.");
+                }
+
+                // 4. Generar PDF
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const pageWidth = doc.internal.pageSize.width;
+                const pageHeight = doc.internal.pageSize.height;
+                
+                // --- DISEÑO ---
+
+                // Cuadro "R"
+                doc.setLineWidth(0.5);
+                doc.rect(pageWidth / 2 - 7, 10, 14, 14);
+                doc.setFontSize(22);
+                doc.setFont('helvetica', 'bold');
+                doc.text("R", pageWidth / 2, 21, { align: 'center' });
+                doc.setFontSize(8);
+                doc.text("CÓDIGO 91", pageWidth / 2, 27, { align: 'center' });
+
+                // Encabezado Izquierdo
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text("CONFORT ANVE", 15, 20);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.text("CENTRO INDUSTRIAL PANAMERICANA 36", 15, 26);
+                doc.text("GUAYAQUIL 3100, TORTUGUITAS", 15, 31);
+                doc.text("PROV. DE BUENOS AIRES (CP 1667)", 15, 36);
+                doc.text("I.V.A. RESPONSABLE INSCRIPTO", 15, 41);
+
+                // Encabezado Derecho
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text("REMITO", pageWidth - 15, 20, { align: 'right' });
+                doc.setFontSize(10);
+                doc.text(`N°: ${remitoNum}`, pageWidth - 15, 28, { align: 'right' });
+                
+                const today = new Date();
+                const dateStr = today.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                doc.text(`FECHA: ${dateStr}`, pageWidth - 15, 34, { align: 'right' });
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                doc.text("DOCUMENTO NO VÁLIDO COMO FACTURA", pageWidth - 15, 40, { align: 'right' });
+
+                // Línea separadora
+                doc.line(10, 45, pageWidth - 10, 45);
+
+                // Datos del Destinatario y Movimiento
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text("DESTINATARIO / ORIGEN:", 15, 53);
+                doc.setFont('helvetica', 'normal');
+                doc.text(destinatario.toUpperCase(), 65, 53);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text("MOTIVO:", 15, 59);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`${tipoMovimiento} - ${motivo}`, 65, 59);
+
+                // Tabla
+                doc.autoTable({
+                    head: [['CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD']],
+                    body: items,
+                    startY: 65,
+                    theme: 'plain',
+                    styles: { fontSize: 10, cellPadding: 2, lineColor: 0, lineWidth: 0.1 },
+                    headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', halign: 'center' },
+                    columnStyles: {
+                        0: { halign: 'center', cellWidth: 35 },
+                        1: { halign: 'left' },
+                        2: { halign: 'center', cellWidth: 30 }
+                    },
+                    margin: { left: 15, right: 15 }
+                });
+
+                // Pie de página (Firmas) - Posición fija abajo
+                const finalY = pageHeight - 40;
+                
+                doc.setFontSize(8);
+                doc.text("RECIBÍ CONFORME:", 15, finalY - 8);
+
+                const boxWidth = 50;
+                const boxHeight = 20;
+                const gap = 10;
+                const totalWidth = (boxWidth * 3) + (gap * 2);
+                const startX = (pageWidth - totalWidth) / 2;
+                
+                // Firma 1
+                doc.rect(startX, finalY, boxWidth, boxHeight);
+                doc.text("DESPACHANTE", startX + boxWidth/2, finalY + boxHeight + 4, { align: 'center' });
+
+                // Firma 2
+                doc.rect(startX + boxWidth + gap, finalY, boxWidth, boxHeight);
+                doc.text("TRANSPORTE", startX + boxWidth + gap + boxWidth/2, finalY + boxHeight + 4, { align: 'center' });
+
+                // Firma 3
+                doc.rect(startX + (boxWidth + gap) * 2, finalY, boxWidth, boxHeight);
+                doc.text("RECEPTOR", startX + (boxWidth + gap) * 2 + boxWidth/2, finalY + boxHeight + 4, { align: 'center' });
+
+                // Descargar
+                const cleanRemito = remitoNum.replace(/[^a-z0-9]/gi, '_');
+                doc.save(`Remito_${cleanRemito}.pdf`);
+
+            } catch (error) {
+                console.error(error);
+                alert("Ocurrió un error al generar el PDF. Verifique la consola.");
+            }
+        }
         function handleAction(e) {
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
             const data = target.dataset;
+            
             const actionMap = {
                 'show-new-product-modal': showNewProductModal,
                 'save-new-product': saveNewProduct,
@@ -2524,6 +2666,7 @@
                 'show-stock-location-modal': () => showStockLocationModal(data.productId),
                 'show-new-movement-modal': showNewMovementModal,
                 'save-new-movement': saveNewMovement,
+                'download-new-movement-pdf': downloadNewMovementRemito, // <--- AQUÍ ESTÁ LA CONEXIÓN CLAVE
                 'show-move-stock-modal': showMoveStockModal,
                 'save-move-stock': saveMoveStock,
                 'add-movement-line': addNewMovementLine,
@@ -2567,6 +2710,7 @@
                 'save-direct-control': () => saveDirectControl(data.locations),
                 'show-modify-stock-modal': () => handleModifyStock(data.locations),
             };
+            
             if (actionMap[action]) actionMap[action]();
         }
         function handleInput(e) {
@@ -3505,6 +3649,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
