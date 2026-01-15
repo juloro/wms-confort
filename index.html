@@ -1386,17 +1386,28 @@
         }
         function showNewMovementModal() {
             const initialReasons = CONSTANTS.MOVEMENT_REASONS.INGRESO.map(r => `<option value="${r}">${r}</option>`).join('');
+            
+            // Agregamos el botón de descarga en el modal-footer
             const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.NEW_MOVEMENT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Nuevo Movimiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
                 <div class="row g-3 mb-3">
                     <div class="col-md-6"><label for="movementRef" class="form-label">Remito / Referencia</label><input type="text" id="movementRef" class="form-control" placeholder="Nro. de Referencia"></div>
-                    <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, etc."></div>
+                    <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino / Cliente</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, Cliente..."></div>
                 </div>
                 <div class="row g-3">
                     <div class="col-md-4"><label for="movementType" class="form-label">Tipo</label><select id="movementType" class="form-select"><option value="${CONSTANTS.MOVEMENT_TYPE.INGRESS}" selected>Ingreso</option><option value="${CONSTANTS.MOVEMENT_TYPE.EGRESS}">Egreso</option></select></div>
                     <div class="col-md-4"><label for="movementReason" class="form-label">Motivo</label><select id="movementReason" class="form-select">${initialReasons}</select></div>
                     <div class="col-md-4" id="main-location-wrapper"><label for="movementLocation" class="form-label">Ubicación</label><input class="form-control" id="movementLocation" value="${CONSTANTS.DEFAULT_INGRESS_LOCATION}" disabled></div>
                 </div>
-                <hr><h6>Productos</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Línea</button></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" data-action="save-new-movement">Guardar Movimiento</button></div></div></div></div>`;
+                <hr><h6>Productos</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Línea</button></div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <div>
+                        <button type="button" class="btn btn-info text-white me-2" data-action="download-new-movement-pdf">
+                            <span class="material-icons align-middle me-1">print</span> Descargar Remito
+                        </button>
+                        <button type="button" class="btn btn-primary" data-action="save-new-movement">Guardar Movimiento</button>
+                    </div>
+                </div></div></div></div>`;
             createAndShowModal(CONSTANTS.IDS.NEW_MOVEMENT_MODAL, modalHTML);
             addNewMovementLine();
         }
@@ -3494,6 +3505,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
