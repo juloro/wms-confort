@@ -1389,27 +1389,48 @@
         function showNewMovementModal() {
             const initialReasons = CONSTANTS.MOVEMENT_REASONS.INGRESO.map(r => `<option value="${r}">${r}</option>`).join('');
             
-            // Agregamos el botón de descarga en el modal-footer
-            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.NEW_MOVEMENT_MODAL}" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Nuevo Movimiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6"><label for="movementRef" class="form-label">Remito / Referencia</label><input type="text" id="movementRef" class="form-control" placeholder="Nro. de Referencia"></div>
-                    <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino / Cliente</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, Cliente..."></div>
-                </div>
-                <div class="row g-3">
-                    <div class="col-md-4"><label for="movementType" class="form-label">Tipo</label><select id="movementType" class="form-select"><option value="${CONSTANTS.MOVEMENT_TYPE.INGRESS}" selected>Ingreso</option><option value="${CONSTANTS.MOVEMENT_TYPE.EGRESS}">Egreso</option></select></div>
-                    <div class="col-md-4"><label for="movementReason" class="form-label">Motivo</label><select id="movementReason" class="form-select">${initialReasons}</select></div>
-                    <div class="col-md-4" id="main-location-wrapper"><label for="movementLocation" class="form-label">Ubicación</label><input class="form-control" id="movementLocation" value="${CONSTANTS.DEFAULT_INGRESS_LOCATION}" disabled></div>
-                </div>
-                <hr><h6>Productos</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Línea</button></div>
-                <div class="modal-footer justify-content-between">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <div>
-                        <button type="button" class="btn btn-info text-white me-2" data-action="download-new-movement-pdf">
-                            <span class="material-icons align-middle me-1">print</span> Descargar Remito
-                        </button>
-                        <button type="button" class="btn btn-primary" data-action="save-new-movement">Guardar Movimiento</button>
+            const modalHTML = `<div class="modal fade" id="${CONSTANTS.IDS.NEW_MOVEMENT_MODAL}" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Nuevo Movimiento</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="file" id="remito-camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handleRemitoImage(this)">
+                            
+                            <div class="alert alert-light border d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="badge bg-warning text-dark me-2">IA BETA</span>
+                                    <small>Autocompletar datos desde una foto con Gemini</small>
+                                </div>
+                                <button class="btn btn-warning" onclick="document.getElementById('remito-camera-input').click()">
+                                    <span class="material-icons align-middle me-1">photo_camera</span> Escanear Remito
+                                </button>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6"><label for="movementRef" class="form-label">Remito / Referencia</label><input type="text" id="movementRef" class="form-control" placeholder="Nro. de Referencia"></div>
+                                <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino / Cliente</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, Cliente..."></div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label for="movementType" class="form-label">Tipo</label><select id="movementType" class="form-select"><option value="${CONSTANTS.MOVEMENT_TYPE.INGRESS}" selected>Ingreso</option><option value="${CONSTANTS.MOVEMENT_TYPE.EGRESS}">Egreso</option></select></div>
+                                <div class="col-md-4"><label for="movementReason" class="form-label">Motivo</label><select id="movementReason" class="form-select">${initialReasons}</select></div>
+                                <div class="col-md-4" id="main-location-wrapper"><label for="movementLocation" class="form-label">Ubicación</label><input class="form-control" id="movementLocation" value="${CONSTANTS.DEFAULT_INGRESS_LOCATION}" disabled></div>
+                            </div>
+                            <hr><h6>Productos</h6><div id="movement-product-lines"></div><button class="btn btn-outline-success btn-sm mt-2" data-action="add-movement-line"><span class="material-icons align-middle">add</span> Agregar Línea</button></div>
+                            <div class="modal-footer justify-content-between">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <div>
+                                    <button type="button" class="btn btn-info text-white me-2" data-action="download-new-movement-pdf">
+                                        <span class="material-icons align-middle me-1">print</span> Descargar Remito
+                                    </button>
+                                    <button type="button" class="btn btn-primary" data-action="save-new-movement">Guardar Movimiento</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div></div></div></div>`;
+                </div>`;
             createAndShowModal(CONSTANTS.IDS.NEW_MOVEMENT_MODAL, modalHTML);
             addNewMovementLine();
         }
@@ -2805,6 +2826,156 @@
                 alert("Ocurrió un error al generar el PDF. Verifique la consola.");
             }
         }
+        // --- FUNCIONES DE IA (Gemini Vision) ---
+
+        async function handleRemitoImage(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            // Limpiamos el input para permitir seleccionar la misma foto si se desea
+            inputElement.value = '';
+
+            if (!confirm("Se enviará la imagen a analizar para extraer los datos. Esto puede tardar unos segundos. ¿Continuar?")) return;
+
+            showLoading(true, "Analizando remito con Gemini IA...");
+
+            try {
+                const base64Image = await convertFileToBase64(file);
+                const data = await analyzeImageWithGemini(base64Image);
+                
+                if (data) {
+                    populateMovementFormFromAI(data);
+                    alert("¡Análisis completado! Verifique los datos cargados antes de guardar.");
+                } else {
+                    alert("La IA no pudo extraer información legible. Intente con una foto más clara.");
+                }
+
+            } catch (error) {
+                console.error("Error IA:", error);
+                alert("Ocurrió un error al procesar la imagen: " + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function convertFileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function analyzeImageWithGemini(base64ImageFull) {
+            // TU API KEY CONFIGURADA
+            const API_KEY = 'AIzaSyC8LivDqtaNlTiiEvQSqRaQ47bmIf7-3-A'; 
+            
+            // Gemini necesita el base64 sin el prefijo "data:image/jpeg;base64,"
+            const base64Data = base64ImageFull.split(',')[1];
+            const mimeType = base64ImageFull.split(';')[0].split(':')[1];
+
+            const prompt = `Analiza esta imagen de un remito o nota de entrega. 
+            Extrae la información en formato JSON con esta estructura:
+            {
+                "proveedor": "Nombre del proveedor",
+                "numero_remito": "Número del documento o S/N",
+                "productos": [
+                    { "id_sugerido": "ID o código visible", "descripcion": "Descripción del producto", "cantidad": 0 }
+                ]
+            }
+            Sé preciso con las cantidades.`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    "contents": [{
+                        "parts": [
+                            { "text": prompt },
+                            {
+                                "inline_data": {
+                                    "mime_type": mimeType,
+                                    "data": base64Data
+                                }
+                            }
+                        ]
+                    }],
+                    "generationConfig": {
+                        "response_mime_type": "application/json"
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || "Error al conectar con Gemini");
+            }
+
+            const json = await response.json();
+            
+            // Extraer y parsear el texto de la respuesta de Gemini
+            const textResponse = json.candidates[0].content.parts[0].text;
+            return JSON.parse(textResponse);
+        }
+
+        function populateMovementFormFromAI(data) {
+            // 1. Llenar cabecera
+            if (data.numero_remito) document.getElementById('movementRef').value = data.numero_remito;
+            if (data.proveedor) document.getElementById('movementOrigin').value = data.proveedor;
+
+            // 2. Limpiar líneas existentes
+            const container = document.getElementById('movement-product-lines');
+            container.innerHTML = '';
+
+            // 3. Procesar productos
+            if (data.productos && data.productos.length > 0) {
+                data.productos.forEach(item => {
+                    // Intentamos encontrar el producto en nuestra base de datos
+                    // Buscamos coincidencia aproximada por ID o Nombre
+                    const searchTerm = (item.descripcion || '').toLowerCase();
+                    const searchID = (item.id_sugerido || '').toString().toLowerCase();
+
+                    let bestMatch = null;
+
+                    // Estrategia simple de búsqueda
+                    bestMatch = fullData.productos.find(p => {
+                        const dbId = String(p[0]).toLowerCase();
+                        const dbName = String(p[1]).toLowerCase();
+                        return dbId === searchID || dbName.includes(searchTerm) || searchTerm.includes(dbName);
+                    });
+
+                    // Agregamos la línea
+                    const lineId = `line-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
+                    
+                    // Valores precargados (si hubo coincidencia, usamos los datos reales, si no, dejamos lo que leyó la IA para que el usuario corrija)
+                    const idVal = bestMatch ? bestMatch[0] : (item.id_sugerido || '');
+                    const nameVal = bestMatch ? bestMatch[1] : (item.descripcion || '');
+                    
+                    const lineHTML = `<div class="row g-2 mb-2 align-items-center movement-product-line" id="${lineId}">
+                        <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" value="${idVal}" disabled></div>
+                        <div class="col-md-4 autocomplete-container">
+                            <input type="text" id="product-name-input-${lineId}" class="form-control form-control-sm product-name-input" 
+                                   placeholder="Buscar producto..." data-action="search-products-for-movement" value="${nameVal}">
+                            <div class="autocomplete-results list-group shadow-sm"></div>
+                        </div>
+                        <div class="col-md-2"><input type="number" class="form-control form-control-sm product-qty-input" placeholder="Cantidad" min="1" value="${item.cantidad || 1}"></div>
+                        <div class="col-md-3 d-none line-location-wrapper"><input class="form-control form-control-sm line-location-input" list="lineLocationOptions" placeholder="Ubicación"><datalist id="lineLocationOptions">${locationOptions}</datalist></div>
+                        <div class="col-md-1"><button class="btn btn-danger btn-sm" data-action="remove-element" data-target-id="${lineId}"><span class="material-icons align-middle" style="font-size: 1rem;">delete</span></button></div>
+                    </div>`;
+                    
+                    container.insertAdjacentHTML('beforeend', lineHTML);
+                });
+            } else {
+                // Si la IA no trajo productos, agregamos una línea vacía
+                addNewMovementLine();
+            }
+        }
         function handleAction(e) {
             const target = e.target.closest('[data-action]');
             if (!target) return;
@@ -3768,6 +3939,8 @@ async function bulkPickTasks() {
         }
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
+        // Exponer función para que el input onchange la reconozca
+        window.handleRemitoImage = handleRemitoImage;
         
         document.addEventListener('DOMContentLoaded', () => {
             DOM = {
@@ -3808,12 +3981,3 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
