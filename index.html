@@ -2868,10 +2868,10 @@
         }
 
         async function analyzeImageWithGemini(base64ImageFull) {
-            // TU API KEY CONFIGURADA
+            // TU API KEY
             const API_KEY = 'AIzaSyC8LivDqtaNlTiiEvQSqRaQ47bmIf7-3-A'; 
             
-            // Gemini necesita el base64 sin el prefijo "data:image/jpeg;base64,"
+            // Limpieza del base64
             const base64Data = base64ImageFull.split(',')[1];
             const mimeType = base64ImageFull.split(';')[0].split(':')[1];
 
@@ -2886,8 +2886,8 @@
             }
             Sé preciso con las cantidades.`;
 
-            // --- CAMBIO AQUÍ: Usamos 'gemini-1.5-flash-latest' para asegurar compatibilidad ---
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+            // --- CAMBIO IMPORTANTE: Usamos el modelo que aparece en tu lista ---
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -2914,15 +2914,14 @@
 
             if (!response.ok) {
                 const errorData = await response.json();
-                // Mejoramos el mensaje de error para debug
+                console.error("Error API Gemini:", errorData);
                 throw new Error(`Error Gemini (${response.status}): ${errorData.error?.message || response.statusText}`);
             }
 
             const json = await response.json();
             
-            // Extraer y parsear el texto de la respuesta de Gemini
             if (!json.candidates || !json.candidates[0].content) {
-                 throw new Error("La IA no devolvió resultados legibles.");
+                 throw new Error("La IA no devolvió resultados. Intente nuevamente.");
             }
             
             const textResponse = json.candidates[0].content.parts[0].text;
@@ -3986,5 +3985,6 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
