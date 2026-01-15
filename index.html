@@ -325,6 +325,8 @@
         let productSort = { by: 'id', ascending: true };
         let lastControlDates = new Map();
 
+        let tempPickingMovements = [];
+
         let DOM = {};
 
         // --- 3. INICIALIZACIÓN DE GOOGLE API Y AUTENTICACIÓN ---
@@ -1661,12 +1663,27 @@
                 }
             }
 
-            if (totalPicked !== task.totalQuantity) {
-                return alert(`La cantidad total pickeada (${totalPicked}) no coincide con la cantidad requerida (${task.totalQuantity}). Por favor, ajuste las cantidades.`);
+            if (totalPicked === 0) {
+                return alert("Debe pickear al menos 1 unidad o declarar falta de stock total.");
             }
 
+            if (totalPicked > task.totalQuantity) {
+                return alert(`La cantidad total pickeada (${totalPicked}) excede la cantidad requerida (${task.totalQuantity}).`);
+            }
+
+            // --- CAMBIO PRINCIPAL ---
+            if (totalPicked < task.totalQuantity) {
+                // Caso Parcial: Guardamos los movimientos físicos temporalmente y abrimos modal de asignación
+                tempPickingMovements = movementRows;
+                activeModals[CONSTANTS.IDS.PICKING_MODAL]?.hide();
+                showPickingAssignmentModal(task, totalPicked);
+                return;
+            }
+            // ------------------------
+
+            // Caso Ideal (Total Pickeado == Total Requerido)
             activeModals[CONSTANTS.IDS.PICKING_MODAL]?.hide();
-            showLoading(true, 'Procesando picking...');
+            showLoading(true, 'Procesando picking completo...');
 
             try {
                 const orderIdsToUpdate = task.orders.map(o => o.idVenta);
@@ -1689,7 +1706,144 @@
                 showLoading(false);
             }
         }
+        function showPickingAssignmentModal(task, availableStock) {
+            const rowsHTML = task.orders.map((order, idx) => {
+                // Buscamos el nombre del cliente en la data original usando el índice
+                const originalOrder = fullData.ordenes[order.index];
+                const cliente = originalOrder ? originalOrder[7] : 'Desconocido';
+                
+                return `
+                <tr class="assignment-row" data-order-index="${order.index}" data-needed="${order.cantidad}">
+                    <td>${sanitizeHTML(cliente)}</td>
+                    <td>${sanitizeHTML(order.idVenta)}</td>
+                    <td class="text-center fw-bold">${order.cantidad}</td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm assignment-input" 
+                               min="0" max="${order.cantidad}" value="0" 
+                               data-action="validate-assignment">
+                    </td>
+                </tr>`;
+            }).join('');
 
+            const modalHTML = `
+            <div class="modal fade" id="pickingAssignmentModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning-subtle">
+                            <h5 class="modal-title">Asignación de Stock Insuficiente</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <strong>Producto:</strong> ${sanitizeHTML(task.nombre)}<br>
+                                Se pickearon <strong>${availableStock}</strong> unidades de las <strong>${task.totalQuantity}</strong> necesarias.
+                                <br>Por favor, asigne el stock disponible. Las órdenes no cubiertas quedarán con <strong>INCIDENCIA</strong>.
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Disponible para asignar:</span>
+                                <span class="fw-bold fs-5 text-primary" id="assignment-available">${availableStock}</span>
+                            </div>
+                            <table class="table table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr><th>Cliente</th><th>ID Venta</th><th class="text-center">Nec.</th><th style="width: 80px;">Asignar</th></tr>
+                                </thead>
+                                <tbody>${rowsHTML}</tbody>
+                            </table>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-picking-assignment" data-total-available="${availableStock}">Confirmar Asignación</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            createAndShowModal('pickingAssignmentModal', modalHTML);
+            
+            // Auto-asignación inteligente (llenar los primeros hasta agotar stock)
+            let remaining = availableStock;
+            document.querySelectorAll('.assignment-input').forEach(input => {
+                const needed = parseInt(input.closest('tr').dataset.needed);
+                if (remaining > 0) {
+                    const toAssign = Math.min(remaining, needed);
+                    input.value = toAssign;
+                    remaining -= toAssign;
+                }
+            });
+            updateAssignmentCounter(availableStock); // Función auxiliar visual
+        }
+
+        async function savePickingAssignment() {
+            const btn = document.querySelector('[data-action="save-picking-assignment"]');
+            const totalAvailable = parseInt(btn.dataset.totalAvailable);
+            
+            const inputs = document.querySelectorAll('.assignment-input');
+            let totalAssigned = 0;
+            const updates = [];
+
+            inputs.forEach(input => {
+                totalAssigned += parseInt(input.value) || 0;
+            });
+
+            if (totalAssigned !== totalAvailable) {
+                return alert(`Debe asignar exactamente las ${totalAvailable} unidades pickeadas. Actualmente ha asignado ${totalAssigned}.`);
+            }
+
+            // Cerrar modal y mostrar carga
+            activeModals['pickingAssignmentModal']?.hide();
+            showLoading(true, 'Guardando asignaciones e incidencias...');
+
+            try {
+                // Generar actualizaciones de estado
+                inputs.forEach(input => {
+                    const row = input.closest('tr');
+                    const orderIndex = parseInt(row.dataset.orderIndex);
+                    const needed = parseInt(row.dataset.needed);
+                    const assigned = parseInt(input.value) || 0;
+                    
+                    let newStatus;
+                    // Lógica: Si se asigna lo que se necesita -> PICKEADO
+                    // Si se asigna menos (o 0) -> INCIDENCIA
+                    if (assigned === needed) {
+                        newStatus = CONSTANTS.STATUS.PICKED;
+                    } else {
+                        newStatus = CONSTANTS.STATUS.INCIDENCE;
+                    }
+
+                    updates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${orderIndex + 2}`,
+                        values: [[newStatus]]
+                    });
+                });
+
+                // Ejecutar: Guardar movimientos físicos (ya calculados antes) + Actualizar estados
+                await Promise.all([
+                    appendToSheet(CONSTANTS.RANGES.movimientos, tempPickingMovements),
+                    batchUpdateSheet(updates)
+                ]);
+
+                tempPickingMovements = []; // Limpiar temporal
+                await loadInitialData();
+
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Función auxiliar visual para el contador del modal
+        function updateAssignmentCounter(max) {
+             const inputs = document.querySelectorAll('.assignment-input');
+             let current = 0;
+             inputs.forEach(i => current += (parseInt(i.value) || 0));
+             const counter = document.getElementById('assignment-available');
+             if(counter) {
+                 const remaining = max - current;
+                 counter.textContent = remaining;
+                 counter.className = remaining === 0 ? "fw-bold fs-5 text-success" : (remaining < 0 ? "fw-bold fs-5 text-danger" : "fw-bold fs-5 text-primary");
+             }
+        }
         async function confirmOutOfStock(productId) {
             const task = virtualTasks.find(t => t.idProducto === productId && t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
             if (!task) {
@@ -2666,7 +2820,8 @@
                 'show-stock-location-modal': () => showStockLocationModal(data.productId),
                 'show-new-movement-modal': showNewMovementModal,
                 'save-new-movement': saveNewMovement,
-                'download-new-movement-pdf': downloadNewMovementRemito, // <--- AQUÍ ESTÁ LA CONEXIÓN CLAVE
+                'download-new-movement-pdf': downloadNewMovementRemito,// <--- AQUÍ ESTÁ LA CONEXIÓN CLAVE
+                'save-picking-assignment': savePickingAssignment,
                 'show-move-stock-modal': showMoveStockModal,
                 'save-move-stock': saveMoveStock,
                 'add-movement-line': addNewMovementLine,
@@ -2733,6 +2888,10 @@
                 searchReplacementProduct(target, target.dataset.orderIndex);
             } else if (action === 'search-products-for-order') {
                 searchProductsForMovement(target, 'select-product-for-manual-order');
+            } else if (action === 'validate-assignment') {
+                 // Actualiza el contador visual en el modal de asignación
+                 const btn = document.querySelector('[data-action="save-picking-assignment"]');
+                 if(btn) updateAssignmentCounter(parseInt(btn.dataset.totalAvailable));
             }
 
              if(target.classList.contains('picking-qty-input')) {
@@ -3649,6 +3808,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
