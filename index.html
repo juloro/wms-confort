@@ -2869,7 +2869,7 @@
 
         async function analyzeImageWithGemini(base64ImageFull) {
             // TU API KEY CONFIGURADA
-            const API_KEY = 'AIzaSyAPuA6ENIZdhVfkcSMbJlqHSRoEV00GgAk'; 
+            const API_KEY = 'AIzaSyC8LivDqtaNlTiiEvQSqRaQ47bmIf7-3-A'; 
             
             // Gemini necesita el base64 sin el prefijo "data:image/jpeg;base64,"
             const base64Data = base64ImageFull.split(',')[1];
@@ -2886,7 +2886,8 @@
             }
             Sé preciso con las cantidades.`;
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+            // --- CAMBIO AQUÍ: Usamos 'gemini-1.5-flash-latest' para asegurar compatibilidad ---
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
             const response = await fetch(url, {
                 method: "POST",
@@ -2913,16 +2914,20 @@
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error?.message || "Error al conectar con Gemini");
+                // Mejoramos el mensaje de error para debug
+                throw new Error(`Error Gemini (${response.status}): ${errorData.error?.message || response.statusText}`);
             }
 
             const json = await response.json();
             
             // Extraer y parsear el texto de la respuesta de Gemini
+            if (!json.candidates || !json.candidates[0].content) {
+                 throw new Error("La IA no devolvió resultados legibles.");
+            }
+            
             const textResponse = json.candidates[0].content.parts[0].text;
             return JSON.parse(textResponse);
         }
-
         function populateMovementFormFromAI(data) {
             // 1. Llenar cabecera
             if (data.numero_remito) document.getElementById('movementRef').value = data.numero_remito;
@@ -3981,4 +3986,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
