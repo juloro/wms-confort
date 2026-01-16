@@ -1399,7 +1399,7 @@
                         <div class="modal-body">
                             <input type="file" id="remito-camera-input" accept="image/*" capture="environment" style="display: none;" onchange="handleRemitoImage(this)">
                             
-                            <div class="alert alert-light border d-flex justify-content-between align-items-center mb-3">
+                            <div class="alert alert-light border d-flex justify-content-between align-items-center mb-0">
                                 <div>
                                     <span class="badge bg-warning text-dark me-2">IA BETA</span>
                                     <small>Autocompletar datos desde una foto con Gemini</small>
@@ -1409,6 +1409,11 @@
                                 </button>
                             </div>
 
+                            <div class="text-end mb-3">
+                                <a href="#" onclick="localStorage.removeItem('gemini_api_key'); alert('Clave borrada. Vuelva a escanear para ingresar una nueva.'); return false;" class="text-muted small" style="text-decoration: none; font-size: 0.8rem;">
+                                    <span class="material-icons align-middle" style="font-size: 14px;">vpn_key</span> Cambiar API Key
+                                </a>
+                            </div>
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6"><label for="movementRef" class="form-label">Remito / Referencia</label><input type="text" id="movementRef" class="form-control" placeholder="Nro. de Referencia"></div>
                                 <div class="col-md-6"><label for="movementOrigin" class="form-label">Origen / Destino / Cliente</label><input type="text" id="movementOrigin" class="form-control" placeholder="Ej: SUCURSAL, DREAN, Cliente..."></div>
@@ -2867,9 +2872,24 @@
             });
         }
 
-        async function analyzeImageWithGemini(base64ImageFull) {
-            // TU API KEY
-            const API_KEY = 'AIzaSyAgMIb_I01yRBnBMHUhfGUQdcsICmBe0_k'; 
+       async function analyzeImageWithGemini(base64ImageFull) {
+            // 1. INTENTAR OBTENER LA CLAVE DEL ALMACENAMIENTO LOCAL
+            let API_KEY = localStorage.getItem('gemini_api_key');
+
+            // 2. SI NO EXISTE, PEDIRLA AL USUARIO (SOLO LA PRIMERA VEZ)
+            if (!API_KEY) {
+                API_KEY = prompt("Por favor, ingresa tu API KEY de Google Gemini para activar la IA (se guardará en este navegador):");
+                
+                // Si el usuario cancela o lo deja vacío, detenemos todo
+                if (!API_KEY) {
+                    throw new Error("Se requiere una API KEY para usar la inteligencia artificial.");
+                }
+                
+                // Guardamos la clave para no volver a pedirla
+                localStorage.setItem('gemini_api_key', API_KEY.trim());
+            }
+
+            // --- LÓGICA DE GEMINI ---
             
             // Limpieza del base64
             const base64Data = base64ImageFull.split(',')[1];
@@ -2886,7 +2906,7 @@
             }
             Sé preciso con las cantidades.`;
 
-            // --- CAMBIO IMPORTANTE: Usamos el modelo que aparece en tu lista ---
+            // Usamos la variable API_KEY que obtuvimos del almacenamiento
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
             const response = await fetch(url, {
@@ -2914,6 +2934,14 @@
 
             if (!response.ok) {
                 const errorData = await response.json();
+                
+                // Si el error es de autenticación (clave inválida o expirada), borramos la clave guardada
+                // para que la próxima vez la vuelva a pedir.
+                if (response.status === 400 || response.status === 403) {
+                    localStorage.removeItem('gemini_api_key');
+                    throw new Error("La API Key es inválida o ha expirado. Por favor intente nuevamente.");
+                }
+
                 console.error("Error API Gemini:", errorData);
                 throw new Error(`Error Gemini (${response.status}): ${errorData.error?.message || response.statusText}`);
             }
@@ -3985,6 +4013,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
