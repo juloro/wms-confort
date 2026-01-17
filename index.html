@@ -320,6 +320,12 @@
         let processedRemitos = new Map();
         let activeModals = {};
         let virtualTasks = [];
+        // Variables para la gestión de diferencias de stock positivas
+        let adjustmentQueue = [];
+        let pendingControlRows = [];
+        let pendingMovementRows = [];
+        let currentAdjustmentLocation = '';
+        let currentControlNote = '';
         let validLocations = new Set();
         let locationsWithStock = new Set();
         let productSort = { by: 'id', ascending: true };
@@ -2280,21 +2286,25 @@
             productListBody.insertAdjacentHTML('beforeend', lineHTML);
         }
 
-        async function saveLocationControl() {
-            const location = document.getElementById('save-location-control-btn').dataset.location;
+       async function saveLocationControl() {
+            const btn = document.getElementById('save-location-control-btn');
+            const location = btn.dataset.location;
             if (!location) return alert("Error: Ubicación no especificada.");
 
             const lines = document.querySelectorAll('.control-product-line');
             if (lines.length === 0) return alert("No hay productos en la lista para controlar.");
 
-            showLoading(true, "Registrando control...");
+            // Reiniciamos las colas globales
+            adjustmentQueue = [];
+            pendingControlRows = [];
+            pendingMovementRows = [];
+            currentAdjustmentLocation = location;
+            currentControlNote = document.getElementById('location-control-note').value.trim();
 
-            const controlRows = [];
-            const movementRows = [];
             const timestamp = getTimestamp();
             const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
-            const note = document.getElementById('location-control-note').value.trim();
 
+            // 1. Clasificación Inicial
             for (const line of lines) {
                 const productId = line.dataset.productId;
                 const productName = line.dataset.productName;
@@ -2302,38 +2312,229 @@
                 const physicalStockInput = line.querySelector('.physical-stock-input');
                 const physicalStock = physicalStockInput ? parseInt(physicalStockInput.value, 10) : 0;
                 
-                if (!productId || isNaN(physicalStock) || physicalStock < 0) {
-                    continue; 
-                }
+                if (!productId || isNaN(physicalStock) || physicalStock < 0) continue;
                 
                 const adjustment = physicalStock - systemStock;
 
-                controlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, note ]);
-                
-                if (adjustment !== 0) {
-                    movementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
+                // Registro del control (Auditoría)
+                // Se guarda siempre para dejar constancia del conteo
+                pendingControlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, systemStock, physicalStock, adjustment, currentControlNote ]);
+
+                if (adjustment < 0) {
+                    // PÉRDIDA: Se asume Ajuste (Merma/Error) automático
+                    pendingMovementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]);
+                } else if (adjustment > 0) {
+                    // GANANCIA: Se envía a la cola para preguntar origen (Ingreso vs Mudanza)
+                    adjustmentQueue.push({
+                        productId,
+                        productName,
+                        quantity: adjustment,
+                        location
+                    });
                 }
             }
 
-            try {
-                if (controlRows.length > 0) {
-                    const promises = [appendToSheet(CONSTANTS.RANGES.controles, controlRows)];
-                    if (movementRows.length > 0) {
-                        promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, movementRows));
-                    }
-                    await Promise.all(promises);
-                } else {
-                    alert("No se procesó ningún producto válido en el control.");
-                }
+            // 2. Decisión de flujo
+            if (adjustmentQueue.length > 0) {
+                // Hay diferencias positivas que explicar. Ocultamos el modal de control y empezamos a preguntar.
                 activeModals[CONSTANTS.IDS.LOCATION_CONTROL_MODAL]?.hide();
-                await loadInitialData();
+                processNextAdjustment();
+            } else {
+                // Solo hubo pérdidas o stocks iguales. Guardamos directo.
+                finalizeControlSave();
+            }
+        }
+        // --- SISTEMA DE GESTIÓN DE ORIGEN DE STOCK (NUEVO) ---
+
+        function processNextAdjustment() {
+            if (adjustmentQueue.length === 0) {
+                // Se terminaron las preguntas, guardamos todo
+                finalizeControlSave();
+                return;
+            }
+
+            const item = adjustmentQueue[0]; // Miramos el primero sin sacarlo aún
+            showStockOriginModal(item);
+        }
+
+        function showStockOriginModal(item) {
+            const modalHTML = `
+            <div class="modal fade" id="stockOriginModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-primary">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">Origen del Excedente</h5>
+                        </div>
+                        <div class="modal-body">
+                            <p>Se detectó un sobrante de <strong>${item.quantity}</strong> unidades del producto:</p>
+                            <h5 class="text-primary">${sanitizeHTML(item.productName)}</h5>
+                            <p>En la ubicación: <strong>${item.location}</strong></p>
+                            <hr>
+                            <p class="mb-3">¿Cuál es el origen de esta mercadería?</p>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success btn-lg" onclick="handleStockOrigin('new')">
+                                    <span class="material-icons align-middle me-2">add_circle</span> Es un INGRESO NUEVO (Compra/Devolución)
+                                </button>
+                                <button class="btn btn-warning btn-lg" onclick="handleStockOrigin('move')">
+                                    <span class="material-icons align-middle me-2">local_shipping</span> Viene de OTRA UBICACIÓN (Mudanza)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal('stockOriginModal', modalHTML);
+        }
+
+        window.handleStockOrigin = (type) => {
+            const item = adjustmentQueue[0]; // Obtenemos el item actual
+            const timestamp = getTimestamp();
+
+            if (type === 'new') {
+                // Es un ingreso nuevo
+                pendingMovementRows.push([ 
+                    item.productId, item.productName, item.quantity, item.location, CONSTANTS.MOVEMENT_TYPE.INGRESS, timestamp 
+                ]);
+                activeModals['stockOriginModal']?.hide();
+                adjustmentQueue.shift(); // Removemos de la cola
+                processNextAdjustment(); // Siguiente
+
+            } else if (type === 'move') {
+                // Es una mudanza, mostramos selector de origen
+                activeModals['stockOriginModal']?.hide();
+                showMoveSourceModal(item);
+            }
+        };
+
+        function showMoveSourceModal(item) {
+            // Buscamos dónde más hay stock de este producto
+            const locationsMap = fullData.stockPorUbicacion.get(String(item.productId));
+            let availableSources = [];
+            
+            if (locationsMap) {
+                availableSources = [...locationsMap.entries()]
+                    .filter(([loc, qty]) => loc !== item.location && qty > 0) // Excluir ubicación actual y vacías
+                    .sort((a,b) => b[1] - a[1]); // Ordenar por mayor stock
+            }
+
+            if (availableSources.length === 0) {
+                alert(`No hay otras ubicaciones con stock para "${item.productName}". Se registrará como INGRESO automáticamente.`);
+                return window.handleStockOrigin('new');
+            }
+
+            const rowsHTML = availableSources.map(([loc, qty]) => `
+                <tr>
+                    <td>${sanitizeHTML(loc)}</td>
+                    <td class="text-end fw-bold">${qty}</td>
+                    <td style="width: 100px;">
+                        <input type="number" class="form-control form-control-sm source-qty-input" 
+                               data-loc="${sanitizeHTML(loc)}" max="${qty}" min="0" placeholder="0">
+                    </td>
+                </tr>`).join('');
+
+            const modalHTML = `
+            <div class="modal fade" id="moveSourceModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Seleccionar Origen del Movimiento</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning py-2">
+                                <small>Faltan justificar: <strong id="move-remaining-qty" class="fs-6">${item.quantity}</strong> unidades.</small>
+                            </div>
+                            <p class="mb-2 small">Indique cuántas unidades se movieron desde cada ubicación:</p>
+                            <div class="table-responsive border rounded" style="max-height: 250px;">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light sticky-top"><tr><th>Ubicación</th><th class="text-end">Disp.</th><th>Tomar</th></tr></thead>
+                                    <tbody>${rowsHTML}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="processNextAdjustment()">Cancelar y saltar</button>
+                            <button type="button" class="btn btn-primary" onclick="confirmMoveSource()">Confirmar Movimiento</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            createAndShowModal('moveSourceModal', modalHTML);
+
+            // Listener para actualizar contador visual
+            document.querySelectorAll('.source-qty-input').forEach(input => {
+                input.addEventListener('input', () => {
+                    const totalSelected = [...document.querySelectorAll('.source-qty-input')].reduce((sum, i) => sum + (parseInt(i.value)||0), 0);
+                    const remaining = item.quantity - totalSelected;
+                    const display = document.getElementById('move-remaining-qty');
+                    if(display) {
+                        display.textContent = remaining;
+                        display.className = remaining === 0 ? "fs-6 text-success fw-bold" : (remaining < 0 ? "fs-6 text-danger fw-bold" : "fs-6 fw-bold");
+                    }
+                });
+            });
+        }
+
+        window.confirmMoveSource = () => {
+            const item = adjustmentQueue[0];
+            const inputs = document.querySelectorAll('.source-qty-input');
+            let totalMoved = 0;
+            const moves = [];
+
+            inputs.forEach(input => {
+                const qty = parseInt(input.value, 10) || 0;
+                if (qty > 0) {
+                    totalMoved += qty;
+                    moves.push({ from: input.dataset.loc, qty: qty });
+                }
+            });
+
+            if (totalMoved !== item.quantity) {
+                return alert(`La cantidad seleccionada (${totalMoved}) no coincide con la diferencia encontrada (${item.quantity}). Ajuste los valores.`);
+            }
+
+            const timestamp = getTimestamp();
+            
+            // Generar los movimientos
+            // 1. Salidas de los orígenes (EGRESS/MOVE)
+            moves.forEach(m => {
+                pendingMovementRows.push([ 
+                    item.productId, item.productName, -m.qty, m.from, CONSTANTS.MOVEMENT_TYPE.MOVE, timestamp 
+                ]);
+            });
+
+            // 2. Entrada al destino (INGRESS/MOVE) - La suma total entra a la ubicación actual
+            pendingMovementRows.push([ 
+                item.productId, item.productName, item.quantity, item.location, CONSTANTS.MOVEMENT_TYPE.MOVE, timestamp 
+            ]);
+
+            activeModals['moveSourceModal']?.hide();
+            adjustmentQueue.shift();
+            processNextAdjustment();
+        };
+
+        async function finalizeControlSave() {
+            if (pendingControlRows.length === 0 && pendingMovementRows.length === 0) {
+                alert("No hubo cambios para guardar.");
+                return;
+            }
+
+            showLoading(true, "Guardando control y movimientos...");
+            try {
+                const promises = [];
+                if (pendingControlRows.length > 0) promises.push(appendToSheet(CONSTANTS.RANGES.controles, pendingControlRows));
+                if (pendingMovementRows.length > 0) promises.push(appendToSheet(CONSTANTS.RANGES.movimientos, pendingMovementRows));
+                
+                await Promise.all(promises);
+                await loadInitialData(); // Recargar para reflejar cambios
+                alert("Control registrado exitosamente.");
+                
             } catch (err) {
                 handleApiError(err);
             } finally {
                 showLoading(false);
             }
         }
-        
         function showProductControlModal() {
              const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
              const modalHTML = `
@@ -4012,7 +4213,10 @@ async function bulkPickTasks() {
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
         // Exponer función para que el input onchange la reconozca
         window.handleRemitoImage = handleRemitoImage;
-        
+        // Exponer funciones para modales dinámicos
+        window.handleStockOrigin = handleStockOrigin;
+        window.confirmMoveSource = confirmMoveSource;
+        window.processNextAdjustment = processNextAdjustment;
         document.addEventListener('DOMContentLoaded', () => {
             DOM = {
                 authorizeButton: document.getElementById('authorize_button'),
@@ -4052,6 +4256,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
