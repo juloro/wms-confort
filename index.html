@@ -3173,32 +3173,42 @@
             const line = document.getElementById(targetLineId);
             if(!line) return;
 
-            // CORRECCIÓN: Obtenemos la ubicación que se está controlando actualmente
+            // 1. Detectamos en qué ubicación estamos trabajando
             const saveBtn = document.getElementById('save-location-control-btn');
             const currentLocation = saveBtn ? saveBtn.dataset.location : null;
 
-            // Buscamos el stock real en ESA ubicación específica
+            // 2. Obtenemos el Stock Local (Lo que hay en ESTA ubicación) -> Para la columna "Stock Sistema"
             let systemStockInLocation = 0;
             if (currentLocation) {
                  systemStockInLocation = fullData.stockPorUbicacion.get(String(productId))?.get(currentLocation) || 0;
             }
 
+            // 3. Obtenemos el Stock Global (Total de la empresa) -> Para mostrarlo como referencia visual
+            const globalStock = fullData.stockTotal.get(String(productId)) || 0;
+
             const nameCell = line.querySelector('.autocomplete-container');
             const idCell = line.cells[0];
-            const systemStockCell = line.cells[2]; // Celda de Stock Sistema
+            const systemStockCell = line.cells[2]; 
             const physicalStockInput = line.querySelector('.physical-stock-input');
 
-            // Guardamos los datos corregidos
+            // --- Guardamos los datos reales ---
             line.dataset.productId = productId;
             line.dataset.productName = productName;
-            line.dataset.systemStock = systemStockInLocation; // Aquí asignamos el valor real, no 0
+            line.dataset.systemStock = systemStockInLocation; // IMPORTANTE: Usamos el stock de la ubicación para calcular diferencias
 
-            // Actualizamos la visual
+            // --- Actualizamos la pantalla ---
             idCell.textContent = productId;
-            nameCell.innerHTML = sanitizeHTML(productName);
-            systemStockCell.textContent = systemStockInLocation; // Mostramos el stock real
+            
+            // Aquí agregamos el Total Global como ayuda visual junto al nombre
+            nameCell.innerHTML = `
+                ${sanitizeHTML(productName)} 
+                <small class="text-muted ms-2" style="font-size: 0.75em;">(Total Global: ${globalStock})</small>
+            `;
+            
+            // La columna de stock sistema muestra lo que hay (o debería haber) en la ubicación
+            systemStockCell.textContent = systemStockInLocation;
 
-            // Por defecto sugerimos el stock del sistema (o 1 si es 0) para agilizar
+            // Si hay stock en la ubicación, lo sugerimos en el input; si no, ponemos 1
             physicalStockInput.value = systemStockInLocation > 0 ? systemStockInLocation : 1;
 
             physicalStockInput.focus();
@@ -4042,6 +4052,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
