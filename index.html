@@ -3173,17 +3173,33 @@
             const line = document.getElementById(targetLineId);
             if(!line) return;
 
+            // CORRECCIÓN: Obtenemos la ubicación que se está controlando actualmente
+            const saveBtn = document.getElementById('save-location-control-btn');
+            const currentLocation = saveBtn ? saveBtn.dataset.location : null;
+
+            // Buscamos el stock real en ESA ubicación específica
+            let systemStockInLocation = 0;
+            if (currentLocation) {
+                 systemStockInLocation = fullData.stockPorUbicacion.get(String(productId))?.get(currentLocation) || 0;
+            }
+
             const nameCell = line.querySelector('.autocomplete-container');
             const idCell = line.cells[0];
+            const systemStockCell = line.cells[2]; // Celda de Stock Sistema
             const physicalStockInput = line.querySelector('.physical-stock-input');
 
+            // Guardamos los datos corregidos
             line.dataset.productId = productId;
             line.dataset.productName = productName;
-            line.dataset.systemStock = "0"; 
+            line.dataset.systemStock = systemStockInLocation; // Aquí asignamos el valor real, no 0
 
+            // Actualizamos la visual
             idCell.textContent = productId;
             nameCell.innerHTML = sanitizeHTML(productName);
-            physicalStockInput.value = "1";
+            systemStockCell.textContent = systemStockInLocation; // Mostramos el stock real
+
+            // Por defecto sugerimos el stock del sistema (o 1 si es 0) para agilizar
+            physicalStockInput.value = systemStockInLocation > 0 ? systemStockInLocation : 1;
 
             physicalStockInput.focus();
             physicalStockInput.select();
@@ -3424,30 +3440,25 @@
                 return;
             }
 
-            // Definimos las columnas: Quitamos "Órdenes" y agregamos "Stock Ref."
+            // Definimos las columnas
             const tableColumn = ["#", "ID Producto", "Nombre", "A Pickear", "Ubicación", "Stock Ref.", "OK", "Falta"];
             const tableRows = [];
 
             pendingTasks.forEach((task, index) => {
                 const bestLocation = getBestLocationForProduct(task.idProducto) || "S/U";
                 
-                // Calculamos el stock total real en el sistema para este producto
-                let currentSystemStock = 0;
-                for (const [loc, details] of locationsWithStock.entries()) {
-                    if (details.id === task.idProducto) {
-                        currentSystemStock += parseInt(details.cantidad || 0);
-                    }
-                }
+                // CORRECCIÓN: Usamos el mapa de stockTotal directamente
+                const currentSystemStock = fullData.stockTotal.get(String(task.idProducto)) || 0;
 
                 const taskData = [
                     index + 1,
                     task.idProducto,
                     task.nombre,
-                    task.totalQuantity, // Cantidad a Pickear (Importante)
+                    task.totalQuantity, 
                     bestLocation,
-                    `(${currentSystemStock})`, // Stock de Referencia entre paréntesis
-                    '', // Espacio para tilde manual OK
-                    ''  // Espacio para anotar faltante
+                    `(${currentSystemStock})`, // Stock Total de Referencia
+                    '', 
+                    ''  
                 ];
                 tableRows.push(taskData);
             });
@@ -3467,7 +3478,6 @@
             const formattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
             const fileName = `Lista_Picking_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.pdf`;
 
-            // Encabezado del PDF
             doc.setFontSize(20);
             doc.text("LISTA DE PICKING", 14, 15);
             doc.setFontSize(10);
@@ -3477,18 +3487,16 @@
                 head: [tableColumn],
                 body: tableRows,
                 startY: 30,
-                // Configuración de estilos para resaltar lo importante y disminuir lo referencial
                 columnStyles: {
-                    0: { cellWidth: 10 }, // #
-                    1: { cellWidth: 25 }, // ID
-                    3: { halign: 'center', fontStyle: 'bold', fontSize: 11 }, // A Pickear (Más grande y negrita)
-                    4: { fontStyle: 'bold' }, // Ubicación
-                    5: { halign: 'center', fontSize: 8, textColor: [100, 100, 100] }, // Stock Ref (Pequeño y gris)
-                    6: { cellWidth: 15 }, // Checkbox OK
-                    7: { cellWidth: 15 }  // Checkbox Falta
+                    0: { cellWidth: 10 }, 
+                    1: { cellWidth: 25 }, 
+                    3: { halign: 'center', fontStyle: 'bold', fontSize: 11 }, 
+                    4: { fontStyle: 'bold' }, 
+                    5: { halign: 'center', fontSize: 8, textColor: [100, 100, 100] }, 
+                    6: { cellWidth: 15 }, 
+                    7: { cellWidth: 15 }  
                 },
                 didDrawCell: function(data) {
-                    // Dibujamos cuadraditos para marcar OK o Falta manualmente
                     if (data.section === 'body' && (data.column.index === 6 || data.column.index === 7)) {
                         doc.setDrawColor(150);
                         doc.rect(data.cell.x + data.cell.width / 2 - 2, data.cell.y + 2, 4, 4);
@@ -4034,6 +4042,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
