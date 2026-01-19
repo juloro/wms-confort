@@ -1031,7 +1031,53 @@
 
             return sortedLocations.length > 0 ? sortedLocations[0][0] : null;
         }
+        // --- UTILIDADES DE BÚSQUEDA DIFUSA (FUZZY SEARCH) ---
+        
+        function calculateStringSimilarity(str1, str2) {
+            const s1 = String(str1 || '').toLowerCase().trim();
+            const s2 = String(str2 || '').toLowerCase().trim();
+            
+            if (s1 === s2) return 1.0; // Coincidencia exacta
+            if (!s1 || !s2) return 0.0;
 
+            const words1 = s1.split(/\s+/);
+            const words2 = s2.split(/\s+/);
+            
+            let matches = 0;
+            // Contamos cuántas palabras de la frase 1 están en la frase 2
+            words1.forEach(w1 => {
+                if (w1.length > 2 && words2.some(w2 => w2.includes(w1) || w1.includes(w2))) {
+                    matches++;
+                }
+            });
+
+            // Retornamos un puntaje basado en el porcentaje de palabras coincidentes
+            return matches / Math.max(words1.length, words2.length);
+        }
+
+        function findBestProductMatches(aiDescription) {
+            if (!aiDescription) return [];
+            
+            // Mapeamos todos los productos con su puntaje de similitud
+            const scoredProducts = fullData.productos.map(p => {
+                // Comparamos contra el Nombre (p[1]) y también contra el ID (p[0])
+                const nameScore = calculateStringSimilarity(aiDescription, p[1]);
+                const idScore = String(p[0]) === String(aiDescription) ? 1.0 : 0; 
+                
+                return {
+                    product: p,
+                    score: Math.max(nameScore, idScore)
+                };
+            });
+
+            // Filtramos los que tengan alguna coincidencia relevante (score > 0.2)
+            // Ordenamos de mayor a menor coincidencia y tomamos los top 5
+            return scoredProducts
+                .filter(item => item.score > 0.2) 
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 5)
+                .map(item => item.product);
+        }
 
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
@@ -1322,11 +1368,31 @@
             const name = document.getElementById('newProductName').value;
             const ean = document.getElementById('newProductEan').value;
             if (!name) return alert('El nombre del producto es obligatorio.');
+            
+            // Verificamos si este modal fue abierto desde una línea de movimiento (IA)
+            const modalElement = document.getElementById(CONSTANTS.IDS.NEW_PRODUCT_MODAL);
+            const sourceLineId = modalElement.dataset.sourceLineId;
+
             activeModals[CONSTANTS.IDS.NEW_PRODUCT_MODAL]?.hide();
             showLoading(true, 'Creando nuevo producto...');
+            
             try {
                 await appendToSheet(CONSTANTS.RANGES.productos, [[id, name, ean]]);
-                await loadInitialData();
+                
+                // Actualizamos los datos locales inmediatamente para no tener que recargar todo
+                // (Esto es un truco para que la interfaz reaccione rápido)
+                fullData.productos.push([id, name, ean]);
+                originalProducts.push([id, name, ean]);
+                
+                // Si venía de la IA, actualizamos la línea correspondiente
+                if (sourceLineId) {
+                    selectProductFromAI(id, name, sourceLineId);
+                    delete modalElement.dataset.sourceLineId; // Limpiamos
+                }
+                
+                // Recarga completa en segundo plano para asegurar consistencia
+                loadInitialData(); 
+                
             } catch (err) { handleApiError(err); } 
             finally { showLoading(false); }
         }
@@ -3169,31 +3235,31 @@
             // 3. Procesar productos
             if (data.productos && data.productos.length > 0) {
                 data.productos.forEach(item => {
-                    // Intentamos encontrar el producto en nuestra base de datos
-                    const searchTerm = (item.descripcion || '').toLowerCase();
-                    const searchID = (item.id_sugerido || '').toString().toLowerCase();
+                    const aiDescription = item.descripcion || '';
+                    const aiId = item.id_sugerido || '';
+                    
+                    // Buscamos candidatos usando el algoritmo de similitud
+                    const candidates = findBestProductMatches(aiDescription);
+                    
+                    // Si el ID sugerido coincide exacto, lo priorizamos como mejor candidato
+                    const exactMatch = fullData.productos.find(p => String(p[0]) === String(aiId));
+                    if (exactMatch && !candidates.find(c => c[0] === exactMatch[0])) {
+                        candidates.unshift(exactMatch);
+                    }
 
-                    let bestMatch = null;
-                    bestMatch = fullData.productos.find(p => {
-                        const dbId = String(p[0]).toLowerCase();
-                        const dbName = String(p[1]).toLowerCase();
-                        return dbId === searchID || dbName.includes(searchTerm) || searchTerm.includes(dbName);
-                    });
-
-                    // Agregamos la línea
                     const lineId = `line-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
                     
-                    const idVal = bestMatch ? bestMatch[0] : (item.id_sugerido || '');
-                    const nameVal = bestMatch ? bestMatch[1] : (item.descripcion || '');
-                    
-                    // --- CAMBIO AQUÍ: Se eliminó 'disabled' del input de ID ---
+                    // Preparamos el HTML de la línea
                     const lineHTML = `<div class="row g-2 mb-2 align-items-center movement-product-line" id="${lineId}">
-                        <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" value="${idVal}"></div>
+                        <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" value=""></div>
                         <div class="col-md-4 autocomplete-container">
                             <input type="text" id="product-name-input-${lineId}" class="form-control form-control-sm product-name-input" 
-                                   placeholder="Buscar producto..." data-action="search-products-for-movement" value="${nameVal}">
-                            <div class="autocomplete-results list-group shadow-sm"></div>
+                                   placeholder="Buscar producto..." data-action="search-products-for-movement" value="${sanitizeHTML(aiDescription)}"
+                                   style="${candidates.length > 0 ? 'border-color: #198754; background-color: #f8fff9;' : 'border-color: #ffc107;'}">
+                            <div class="autocomplete-results list-group shadow-sm" style="display: block;">
+                                ${generateCandidateHTML(candidates, aiDescription, lineId)}
+                            </div>
                         </div>
                         <div class="col-md-2"><input type="number" class="form-control form-control-sm product-qty-input" placeholder="Cantidad" min="1" value="${item.cantidad || 1}"></div>
                         <div class="col-md-3 d-none line-location-wrapper"><input class="form-control form-control-sm line-location-input" list="lineLocationOptions" placeholder="Ubicación"><datalist id="lineLocationOptions">${locationOptions}</datalist></div>
@@ -3201,10 +3267,43 @@
                     </div>`;
                     
                     container.insertAdjacentHTML('beforeend', lineHTML);
+                    
+                    // Si hubo un match exacto o muy alto (score > 0.8), pre-llenamos el ID visualmente
+                    if (candidates.length > 0 && candidates[0][1].toLowerCase() === aiDescription.toLowerCase()) {
+                         const row = document.getElementById(lineId);
+                         row.querySelector('.product-id-input').value = candidates[0][0];
+                         // Ocultamos sugerencias si es exacto
+                         row.querySelector('.autocomplete-results').style.display = 'none';
+                    }
                 });
             } else {
                 addNewMovementLine();
             }
+        }
+
+        // Función auxiliar para generar el HTML de la lista desplegable
+        function generateCandidateHTML(candidates, aiDescription, lineId) {
+            let html = '';
+            
+            // 1. Opciones encontradas en nuestra base de datos
+            candidates.forEach(p => {
+                html += `<button type="button" class="list-group-item list-group-item-action py-2" 
+                            onclick="selectProductFromAI('${p[0]}', '${sanitizeHTML(p[1])}', '${lineId}')">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-0 small">${sanitizeHTML(p[1])}</h6>
+                                <small class="text-muted">ID: ${p[0]}</small>
+                            </div>
+                        </button>`;
+            });
+
+            // 2. Opción "Crear Nuevo Producto"
+            html += `<button type="button" class="list-group-item list-group-item-action py-2 text-primary fw-bold" 
+                        onclick="createProductFromAI('${sanitizeHTML(aiDescription)}', '${lineId}')">
+                        <span class="material-icons align-middle fs-6 me-1">add_circle</span>
+                        Crear como Nuevo Producto
+                    </button>`;
+            
+            return html;
         }
         function handleAction(e) {
             const target = e.target.closest('[data-action]');
@@ -4232,6 +4331,40 @@ async function bulkPickTasks() {
         }
 
         // --- 8. PUNTO DE ENTRADA DE LA APLICACIÓN ---
+        // --- MANEJADORES DE ACCIONES DE LA IA ---
+        window.selectProductFromAI = (productId, productName, lineId) => {
+            const row = document.getElementById(lineId);
+            if (!row) return;
+            
+            row.querySelector('.product-id-input').value = productId;
+            row.querySelector('.product-name-input').value = productName;
+            
+            // Ocultar la lista
+            const results = row.querySelector('.autocomplete-results');
+            results.innerHTML = '';
+            results.style.display = 'none';
+            
+            // Quitar estilo de "sugerencia"
+            row.querySelector('.product-name-input').style = '';
+        };
+
+        window.createProductFromAI = (suggestedName, lineId) => {
+            // Abrimos el modal de nuevo producto
+            showNewProductModal();
+            
+            // Esperamos un momento a que el modal se renderice y pre-cargamos el nombre
+            setTimeout(() => {
+                const nameInput = document.getElementById('newProductName');
+                if (nameInput) {
+                    nameInput.value = suggestedName;
+                    nameInput.focus();
+                }
+                
+                // Guardamos una referencia temporal para saber qué línea actualizar al guardar
+                // Usamos una propiedad en el modal para guardar el ID de la línea que lo invocó
+                document.getElementById(CONSTANTS.IDS.NEW_PRODUCT_MODAL).dataset.sourceLineId = lineId;
+            }, 200);
+        };
         // Exponer función para que el input onchange la reconozca
         window.handleRemitoImage = handleRemitoImage;
         // Exponer funciones para modales dinámicos
@@ -4277,6 +4410,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
