@@ -185,10 +185,10 @@
         </div>
     </div>
 
-    <div id="auth-container" class="loading-overlay">
+   <div id="auth-container" class="loading-overlay">
         <div class="text-center p-5 rounded shadow-lg">
-            <img src="https://images4.imagebam.com/cd/2e/40/ME14MAX8_o.png" alt="Logo WMS Confort" style="height: 112px;" class="mb-4">
-            <p class="mb-4 lead">Por favor, conéctese con su cuenta de Google para continuar.</p>
+            <img src="https://images4.imagebam.com/cd/2e/40/ME14MAX8_o.png" alt="Logo WMS Confort" style="height: 112px;" class="mb-2">
+            <h5 class="text-muted mb-4">v6.0 (Estable con IA)</h5> <p class="mb-4 lead">Por favor, conéctese con su cuenta de Google para continuar.</p>
             <button id="authorize_button" class="btn btn-primary btn-lg" disabled>
                 <span class="material-icons align-middle me-1">login</span>
                 Conectar con Google
@@ -241,7 +241,7 @@
         <div id="controles" class="view"></div>
     </main>
 
-    <footer id="mainFooter" class="footer mt-auto d-none">
+  <footer id="mainFooter" class="footer mt-auto d-none">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center">
@@ -250,7 +250,7 @@
                     <span>Powered by Gemini</span>
                 </div>
                 <div class="text-end">
-                    <span class="text-muted">v5.0 (Estable) - 31/07/2025</span>
+                    <span class="text-muted">v6.0 (Estable con IA) - 2025</span>
                 </div>
             </div>
         </div>
@@ -501,11 +501,44 @@
 
         function renderDashboardView() {
             const container = DOM.views.dashboard;
+            
+            // Cálculos generales
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
             const ordenesConIncidencia = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE).length;
-            const pickingPendientes = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING).length;
             const paraDespachar = (fullData.ordenes || []).filter(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PICKED).length;
 
+            // --- NUEVA LÓGICA: Discriminación de Picking por Canal ---
+            let pickingTotal = 0;
+            const pickingPorCanal = {};
+
+            (fullData.ordenes || []).forEach(o => {
+                // Si el estado es PENDIENTE
+                if (o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.PENDING) {
+                    pickingTotal++;
+                    // El canal está en la columna 5 (índice 5)
+                    const canal = (o[5] || 'SIN CANAL').toUpperCase();
+                    pickingPorCanal[canal] = (pickingPorCanal[canal] || 0) + 1;
+                }
+            });
+
+            // Generamos el HTML de la lista pequeña de canales
+            // Ordenamos de mayor a menor cantidad
+            const pickingDetalleHTML = Object.entries(pickingPorCanal)
+                .sort((a, b) => b[1] - a[1]) 
+                .map(([canal, cant]) => `
+                    <div class="d-flex justify-content-between px-3" style="font-size: 0.8rem;">
+                        <span class="text-muted text-truncate" style="max-width: 150px;">${sanitizeHTML(canal)}</span>
+                        <span class="fw-bold">${cant}</span>
+                    </div>`
+                ).join('');
+            
+            // Si hay muchos canales, ponemos un scroll, si no, se ve directo
+            const pickingListContainer = pickingDetalleHTML 
+                ? `<div class="mt-2 pt-2 border-top" style="max-height: 100px; overflow-y: auto;">${pickingDetalleHTML}</div>` 
+                : '';
+            // ---------------------------------------------------------
+
+            // Cálculos de Semáforo de Ubicaciones (Sin cambios)
             let controlStatus = { green: 0, yellow: 0, red: 0 };
             const today = new Date();
             const totalLocations = validLocations.size;
@@ -531,14 +564,52 @@
             const yellowPercent = totalLocations > 0 ? (controlStatus.yellow / totalLocations * 100).toFixed(1) : 0;
             const redPercent = totalLocations > 0 ? (controlStatus.red / totalLocations * 100).toFixed(1) : 0;
 
-            container.innerHTML = `<h2 class="mb-4">Dashboard</h2>
+            container.innerHTML = `<h2 class="mb-4">Dashboard v6.0</h2>
                 <div class="row">
-                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-primary">new_releases</span><h5 class="card-title mt-2">Órdenes para Procesar</h5><p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p></div></div></div>
-                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-danger">report_problem</span><h5 class="card-title mt-2">Órdenes con Incidencia</h5><p class="card-text fw-bold dashboard-card-value">${ordenesConIncidencia}</p></div></div></div>
-                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-warning">pending_actions</span><h5 class="card-title mt-2">Picking Pendiente</h5><p class="card-text fw-bold dashboard-card-value">${pickingPendientes}</p></div></div></div>
-                    <div class="col-md-3 mb-4"><div class="card h-100 text-center"><div class="card-body"><span class="material-icons card-icon text-info">local_shipping</span><h5 class="card-title mt-2">Para Despachar</h5><p class="card-text fw-bold dashboard-card-value">${paraDespachar}</p></div></div></div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card h-100 text-center">
+                            <div class="card-body">
+                                <span class="material-icons card-icon text-primary">new_releases</span>
+                                <h5 class="card-title mt-2">Órdenes para Procesar</h5>
+                                <p class="card-text fw-bold dashboard-card-value">${ordenesSinEstado}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card h-100 text-center">
+                            <div class="card-body">
+                                <span class="material-icons card-icon text-danger">report_problem</span>
+                                <h5 class="card-title mt-2">Órdenes con Incidencia</h5>
+                                <p class="card-text fw-bold dashboard-card-value">${ordenesConIncidencia}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card h-100 text-center">
+                            <div class="card-body pb-2">
+                                <span class="material-icons card-icon text-warning">pending_actions</span>
+                                <h5 class="card-title mt-2">Picking Pendiente</h5>
+                                <p class="card-text fw-bold dashboard-card-value mb-0">${pickingTotal}</p>
+                                ${pickingListContainer}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card h-100 text-center">
+                            <div class="card-body">
+                                <span class="material-icons card-icon text-info">local_shipping</span>
+                                <h5 class="card-title mt-2">Para Despachar</h5>
+                                <p class="card-text fw-bold dashboard-card-value">${paraDespachar}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                
                 <hr style="border-color: rgba(255,255,255,0.5);">
+                
                 <h4 class="mb-3">Estado de Controles de Ubicación</h4>
                 <div class="card">
                     <div class="card-body">
@@ -4428,6 +4499,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
