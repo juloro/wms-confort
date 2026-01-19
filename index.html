@@ -3157,7 +3157,7 @@
             const textResponse = json.candidates[0].content.parts[0].text;
             return JSON.parse(textResponse);
         }
-        function populateMovementFormFromAI(data) {
+       function populateMovementFormFromAI(data) {
             // 1. Llenar cabecera
             if (data.numero_remito) document.getElementById('movementRef').value = data.numero_remito;
             if (data.proveedor) document.getElementById('movementOrigin').value = data.proveedor;
@@ -3170,13 +3170,10 @@
             if (data.productos && data.productos.length > 0) {
                 data.productos.forEach(item => {
                     // Intentamos encontrar el producto en nuestra base de datos
-                    // Buscamos coincidencia aproximada por ID o Nombre
                     const searchTerm = (item.descripcion || '').toLowerCase();
                     const searchID = (item.id_sugerido || '').toString().toLowerCase();
 
                     let bestMatch = null;
-
-                    // Estrategia simple de búsqueda
                     bestMatch = fullData.productos.find(p => {
                         const dbId = String(p[0]).toLowerCase();
                         const dbName = String(p[1]).toLowerCase();
@@ -3187,12 +3184,12 @@
                     const lineId = `line-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                     const locationOptions = [...validLocations].map(l => `<option value="${sanitizeHTML(l)}"></option>`).join('');
                     
-                    // Valores precargados (si hubo coincidencia, usamos los datos reales, si no, dejamos lo que leyó la IA para que el usuario corrija)
                     const idVal = bestMatch ? bestMatch[0] : (item.id_sugerido || '');
                     const nameVal = bestMatch ? bestMatch[1] : (item.descripcion || '');
                     
+                    // --- CAMBIO AQUÍ: Se eliminó 'disabled' del input de ID ---
                     const lineHTML = `<div class="row g-2 mb-2 align-items-center movement-product-line" id="${lineId}">
-                        <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" value="${idVal}" disabled></div>
+                        <div class="col-md-2"><input type="text" class="form-control form-control-sm product-id-input" placeholder="ID" value="${idVal}"></div>
                         <div class="col-md-4 autocomplete-container">
                             <input type="text" id="product-name-input-${lineId}" class="form-control form-control-sm product-name-input" 
                                    placeholder="Buscar producto..." data-action="search-products-for-movement" value="${nameVal}">
@@ -3206,7 +3203,6 @@
                     container.insertAdjacentHTML('beforeend', lineHTML);
                 });
             } else {
-                // Si la IA no trajo productos, agregamos una línea vacía
                 addNewMovementLine();
             }
         }
@@ -3323,6 +3319,31 @@
                 'control-location-select': () => populateLocationControlModal(target.value)
             };
             if (idMap[target.id]) idMap[target.id]();
+
+            // --- NUEVO BLOQUE: Actualizar nombre si se cambia el ID manualmente (Corrección post-IA) ---
+            if (target.classList.contains('product-id-input')) {
+                const id = target.value.trim();
+                // Buscamos si el ID ingresado existe en nuestra base de datos
+                const product = fullData.productos.find(p => String(p[0]) === id);
+                
+                const row = target.closest('.movement-product-line');
+                const nameInput = row.querySelector('.product-name-input');
+                
+                if (product) {
+                    // Si existe, actualizamos el nombre automáticamente
+                    if (nameInput) nameInput.value = product[1];
+                    // Visualmente indicamos que está OK (opcional)
+                    target.classList.remove('is-invalid');
+                    target.classList.add('is-valid');
+                } else {
+                    // Si no existe, avisamos visualmente (opcional)
+                    if (nameInput) nameInput.value = "Producto no encontrado"; // O dejar el que estaba
+                    target.classList.remove('is-valid');
+                    target.classList.add('is-invalid');
+                }
+            }
+            // ------------------------------------------------------------------------------------------
+
             if (target.dataset.action === 'handle-incident-action-change') {
                 handleIncidentActionChange(target, parseInt(target.dataset.orderIndex, 10));
             }
@@ -4256,6 +4277,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
