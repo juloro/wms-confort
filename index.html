@@ -4348,24 +4348,42 @@ async function bulkPickTasks() {
             row.querySelector('.product-name-input').style = '';
         };
 
-        window.createProductFromAI = (suggestedName, lineId) => {
-            // Abrimos el modal de nuevo producto
+       window.createProductFromAI = (suggestedName, lineId) => {
+            // 1. Abrimos el modal
             showNewProductModal();
             
-            // Esperamos un momento a que el modal se renderice y pre-cargamos el nombre
+            const modalElement = document.getElementById(CONSTANTS.IDS.NEW_PRODUCT_MODAL);
+            
+            // 2. Vinculamos el modal a la línea que lo pidió
+            modalElement.dataset.sourceLineId = lineId;
+
+            // 3. Pre-cargamos el nombre sugerido
             setTimeout(() => {
                 const nameInput = document.getElementById('newProductName');
                 if (nameInput) {
                     nameInput.value = suggestedName;
                     nameInput.focus();
                 }
-                
-                // Guardamos una referencia temporal para saber qué línea actualizar al guardar
-                // Usamos una propiedad en el modal para guardar el ID de la línea que lo invocó
-                document.getElementById(CONSTANTS.IDS.NEW_PRODUCT_MODAL).dataset.sourceLineId = lineId;
             }, 200);
+
+            // 4. LÓGICA DE CANCELACIÓN (NUEVO)
+            // Escuchamos el evento de "ocultar modal" una sola vez
+            modalElement.addEventListener('hidden.bs.modal', function onModalClose() {
+                // Si al cerrarse todavía tiene el 'sourceLineId', significa que NO se guardó
+                // (porque la función saveNewProduct borra ese ID si tiene éxito)
+                if (modalElement.dataset.sourceLineId) {
+                    const lineToRemove = document.getElementById(modalElement.dataset.sourceLineId);
+                    if (lineToRemove) {
+                        lineToRemove.remove(); // Eliminamos la línea problemática
+                        alert("Operación cancelada. Se descartó la línea incompleta.");
+                    }
+                    // Limpiamos la marca para evitar errores futuros
+                    delete modalElement.dataset.sourceLineId;
+                }
+                // Quitamos el listener para que no se acumule
+                modalElement.removeEventListener('hidden.bs.modal', onModalClose);
+            }, { once: true });
         };
-        // Exponer función para que el input onchange la reconozca
         window.handleRemitoImage = handleRemitoImage;
         // Exponer funciones para modales dinámicos
         window.handleStockOrigin = handleStockOrigin;
@@ -4410,6 +4428,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
