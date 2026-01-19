@@ -1180,7 +1180,7 @@
             return `<tr data-search="${searchData}"><td>${id}</td><td>${nombre}</td><td>${ean}</td><td class="text-end fw-bold ${stock <= 0 ? 'text-danger' : ''}">${stock}</td><td class="text-center"><div class="btn-group"><button class="btn btn-icon text-primary" title="Editar Producto" data-action="show-edit-product-modal" data-product-id="${id}" data-index="${index}"><span class="material-icons">edit</span></button><button class="btn btn-icon text-info" title="Ver Ubicaciones" data-action="show-stock-location-modal" data-product-id="${id}"><span class="material-icons">search</span></button></div></td></tr>`;
         }
         
-        function getOrderRowHTML(row, index) {
+       function getOrderRowHTML(row, index) {
             const estado = sanitizeHTML(row[6] || 'SIN ESTADO');
             const estadoUpper = String(row[6] || '').toUpperCase();
             let rowClass = '';
@@ -1202,8 +1202,15 @@
             }
 
             let actionButtonHTML = '';
+            // Botón de Edición (Lápiz) - Disponible siempre que no esté cancelada/despachada (o según prefieras)
+            const editBtn = `
+                <button class="btn btn-icon text-primary" title="Editar Orden" data-action="show-edit-order-modal" data-order-index="${index}">
+                    <span class="material-icons">edit</span>
+                </button>`;
+
             if (estadoUpper === CONSTANTS.STATUS.PICKED) {
                 actionButtonHTML = `<div class="btn-group">
+                    ${editBtn}
                     <button class="btn btn-icon text-secondary" title="Imprimir Etiqueta" 
                         data-action="download-order-label"
                         data-product-name="${sanitizeHTML(row[2])}"
@@ -1215,10 +1222,13 @@
                         data-order-number="${sanitizeHTML(ordenNum)}">
                             <span class="material-icons">label</span>
                     </button>
-                    <button class="btn btn-icon text-primary" title="Despachar" data-action="dispatch-order" data-order-index="${index}">
+                    <button class="btn btn-icon text-success" title="Despachar" data-action="dispatch-order" data-order-index="${index}">
                         <span class="material-icons">local_shipping</span>
                     </button>
                 </div>`;
+            } else {
+                // Si no está pickeada, mostramos solo el botón de editar (y otros si hubiera)
+                actionButtonHTML = `<div class="btn-group">${editBtn}</div>`;
             }
 
             return `<tr class="${rowClass}" data-search="${searchData}" data-order-index="${index}">
@@ -3433,6 +3443,8 @@
                 'bulk-generate-remito': bulkGenerateRemito,
                 'bulk-pick-tasks': bulkPickTasks,
                 'add-manual-order-line': addManualOrderLine,
+                'show-edit-order-modal': () => showEditOrderModal(parseInt(data.orderIndex, 10)),
+                'save-order-changes': saveOrderChanges,
                 'save-direct-control': () => saveDirectControl(data.locations),
                 'show-modify-stock-modal': () => handleModifyStock(data.locations),
             };
@@ -3826,6 +3838,99 @@
                     resource: { values: [[orderNumber]] }
                 });
                 await loadInitialData();
+            } catch (err) {
+                handleApiError(err);
+            } finally {
+                showLoading(false);
+            }
+        }
+        function showEditOrderModal(index) {
+            const order = fullData.ordenes[index];
+            if (!order) return alert('Error: No se pudo cargar la orden.');
+
+            // Obtenemos canales únicos existentes para sugerirlos
+            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
+            const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
+
+            const modalHTML = `
+            <div class="modal fade" id="editOrderModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title">Editar Orden</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label text-muted">Producto</label>
+                                <input type="text" class="form-control" value="${sanitizeHTML(order[2])}" disabled readonly>
+                            </div>
+                            
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">ID Venta</label>
+                                    <input type="text" class="form-control" value="${sanitizeHTML(order[1])}" disabled readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Cantidad</label>
+                                    <input type="text" class="form-control" value="${sanitizeHTML(order[4])}" disabled readonly>
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <div class="mb-3">
+                                <label for="editOrderChannel" class="form-label fw-bold">Canal de Venta</label>
+                                <input class="form-control" list="channelOptionsList" id="editOrderChannel" value="${sanitizeHTML(order[5])}">
+                                <datalist id="channelOptionsList">
+                                    <option value="RETIRO LOCAL">
+                                    <option value="MOSTRADOR">
+                                    ${channelOptions}
+                                </datalist>
+                                <div class="form-text">Modifique esto si el cliente decide retirar personalmente.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="editOrderCustomer" class="form-label fw-bold">Nombre Cliente</label>
+                                <input type="text" class="form-control" id="editOrderCustomer" value="${sanitizeHTML(order[7])}">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-order-changes" data-order-index="${index}">Guardar Cambios</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            createAndShowModal('editOrderModal', modalHTML);
+        }
+
+        async function saveOrderChanges() {
+            const btn = document.querySelector('[data-action="save-order-changes"]');
+            const index = parseInt(btn.dataset.orderIndex, 10);
+            
+            const newChannel = document.getElementById('editOrderChannel').value.trim().toUpperCase();
+            const newCustomer = document.getElementById('editOrderCustomer').value.trim().toUpperCase();
+
+            if (!newChannel) return alert("El canal no puede estar vacío.");
+
+            activeModals['editOrderModal']?.hide();
+            showLoading(true, 'Actualizando orden...');
+
+            try {
+                // Actualizamos Canal (Columna F -> índice 5) y Cliente (Columna H -> índice 7)
+                // Usamos batchUpdate para hacer dos cambios en una sola llamada de red si es posible, 
+                // o dos update simples. Aquí haremos un rango continuo si están cerca, 
+                // pero como están separados por Estado (G), haremos batch.
+                
+                const updates = [
+                    { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!F${index + 2}`, values: [[newChannel]] },
+                    { range: `${CONSTANTS.SHEET_NAMES.ORDERS}!H${index + 2}`, values: [[newCustomer]] }
+                ];
+
+                await batchUpdateSheet(updates);
+                await loadInitialData(); // Recargamos para ver cambios en Dashboard y Tabla
+                
             } catch (err) {
                 handleApiError(err);
             } finally {
@@ -4499,6 +4604,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
