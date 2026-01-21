@@ -632,27 +632,31 @@
                 `;
         }
         function renderTasksView() {
-            const container = DOM.views.tareas;
+            // 1. PRIMERO: Generamos las tareas para tener la info actualizada
+            generateVirtualTasks(); 
             
-            // 1. Datos existentes (Órdenes nuevas sin procesar)
-            const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
-
-            // 2. CÁLCULOS NUEVOS (Métricas de Picking Activo)
+            // 2. AHORA SÍ: Filtramos y calculamos con los datos frescos
             const pendingTasks = virtualTasks.filter(t => t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
 
-            // A) Suma total de unidades
+            // Cálculo A: Suma total de unidades a pickear
             const totalUnitsInPicking = pendingTasks.reduce((sum, t) => sum + t.totalQuantity, 0);
 
-            // B) Cantidad de órdenes únicas involucradas
-            // Usamos un Set para evitar duplicados si una misma orden pide varios productos distintos
+            // Cálculo B: Cantidad de órdenes únicas involucradas
             const uniqueOrdersInPicking = new Set();
             pendingTasks.forEach(t => {
                 if (t.orders && Array.isArray(t.orders)) {
-                    t.orders.forEach(o => uniqueOrdersInPicking.add(o.idVenta));
+                    t.orders.forEach(o => {
+                        if (o.idVenta) uniqueOrdersInPicking.add(o.idVenta);
+                    });
                 }
             });
             const totalOrdersCount = uniqueOrdersInPicking.size;
 
+            // Datos de órdenes nuevas sin procesar (para el contador de la derecha)
+            const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
+
+            // 3. Renderizamos el HTML con los valores calculados
+            const container = DOM.views.tareas;
             container.innerHTML = `
             <div class="d-flex justify-content-between align-items-end mb-4">
                 <div>
@@ -660,11 +664,11 @@
                     <div class="d-flex gap-3">
                         <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill">
                             <span class="material-icons align-middle fs-6 me-1">shopping_cart</span>
-                            Órdenes en Picking: <strong class="fs-6">${totalOrdersCount}</strong>
+                            Órdenes Activas: <strong class="fs-6">${totalOrdersCount}</strong>
                         </span>
                         <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill">
                             <span class="material-icons align-middle fs-6 me-1">layers</span>
-                            Unidades Totales: <strong class="fs-6">${totalUnitsInPicking}</strong>
+                            Unidades a Pickear: <strong class="fs-6">${totalUnitsInPicking}</strong>
                         </span>
                     </div>
                 </div>
@@ -701,7 +705,7 @@
                 </table>
             </div>`;
             
-            generateVirtualTasks();
+            // 4. Llenamos la tabla
             const tableBody = document.getElementById('tasks-table-body');
             if(!tableBody) return;
             
@@ -714,7 +718,7 @@
                 return;
             }
             
-            // Ordenar: Pendientes primero
+            // Ordenamos para mostrar pendientes primero
             const sortedTasks = [...virtualTasks].sort((a, b) => {
                 if (a.state === CONSTANTS.STATUS.PENDING && b.state !== CONSTANTS.STATUS.PENDING) return -1;
                 if (a.state !== CONSTANTS.STATUS.PENDING && b.state === CONSTANTS.STATUS.PENDING) return 1;
@@ -4648,6 +4652,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
