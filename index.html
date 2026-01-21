@@ -3220,89 +3220,85 @@
             });
         }
 
-      async function analyzeImageWithGemini(base64ImageFull) {
-            // 1. INTENTAR OBTENER LA CLAVE DEL ALMACENAMIENTO LOCAL
+     async function analyzeImageWithGemini(base64ImageFull) {
+            // 1. OBTENER CLAVE
             let API_KEY = localStorage.getItem('gemini_api_key');
-
-            // 2. SI NO EXISTE, PEDIRLA AL USUARIO (SOLO LA PRIMERA VEZ)
-            // Usamos window.prompt explícitamente para evitar ambigüedades
             if (!API_KEY) {
-                API_KEY = window.prompt("Por favor, ingresa tu API KEY de Google Gemini para activar la IA (se guardará en este navegador):");
-                
-                // Si el usuario cancela o lo deja vacío, detenemos todo
-                if (!API_KEY) {
-                    throw new Error("Se requiere una API KEY para usar la inteligencia artificial.");
-                }
-                
-                // Guardamos la clave para no volver a pedirla
+                API_KEY = window.prompt("Por favor, ingresa tu API KEY de Google Gemini (se guardará en este navegador):");
+                if (!API_KEY) throw new Error("Se requiere una API KEY.");
                 localStorage.setItem('gemini_api_key', API_KEY.trim());
             }
 
-            // --- LÓGICA DE GEMINI ---
-            
-            // Limpieza del base64
+            // 2. PREPARAR BASE DE DATOS PARA LA IA
+            // Convertimos tu lista de productos a un formato de texto ligero para que la IA la lea.
+            // Limitamos para no saturar si tienes miles, pero Gemini soporta muchísimo.
+            const productContext = (fullData.productos || [])
+                .map(p => `ID: ${p[0]} | NOMBRE: ${p[1]}`)
+                .join('\n');
+
+            // 3. LIMPIEZA DE IMAGEN
             const base64Data = base64ImageFull.split(',')[1];
             const mimeType = base64ImageFull.split(';')[0].split(':')[1];
 
-            // --- CORRECCIÓN: CAMBIAMOS EL NOMBRE DE LA VARIABLE A 'aiPrompt' ---
-            const aiPrompt = `Analiza esta imagen de un remito o nota de entrega. 
-            Extrae la información en formato JSON con esta estructura:
+            // 4. EL PROMPT MAESTRO
+            const aiPrompt = `
+            Actúa como un experto operador logístico. Tienes dos fuentes de información:
+            1. Una IMAGEN de un remito/nota de entrega de un proveedor.
+            2. Una BASE DE DATOS DE PRODUCTOS interna (texto abajo).
+
+            TU TAREA:
+            1. Lee los productos y cantidades que figuran en la IMAGEN.
+            2. Para cada producto leído, búscalo conceptualmente en la BASE DE DATOS provista.
+            3. La coincidencia no tiene que ser exacta palabra por palabra, usa tu criterio inteligente (ej: "Heladera Pat" = "Patrick Heladera").
+            
+            FORMATO DE RESPUESTA (JSON):
             {
-                "proveedor": "Nombre del proveedor",
-                "numero_remito": "Número del documento o S/N",
+                "proveedor": "Nombre detectado en la imagen",
+                "numero_remito": "Número detectado o S/N",
                 "productos": [
-                    { "id_sugerido": "ID o código visible", "descripcion": "Descripción del producto", "cantidad": 0 }
+                    { 
+                        "id_sugerido": "SI ENCONTRASTE MATCH, PON EL ID DE MI BASE DE DATOS AQUÍ. SI NO, PON 'NUEVO'", 
+                        "descripcion": "SI ENCONTRASTE MATCH, PON EL NOMBRE DE MI BASE DE DATOS. SI NO, PON EL DE LA IMAGEN", 
+                        "cantidad": 0,
+                        "confianza": "ALTA, MEDIA o BAJA"
+                    }
                 ]
             }
-            Sé preciso con las cantidades.`;
 
-            // Usamos la variable API_KEY que obtuvimos del almacenamiento
+            --- INICIO BASE DE DATOS INTERNA ---
+            ${productContext}
+            --- FIN BASE DE DATOS INTERNA ---
+            `;
+
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
 
             const response = await fetch(url, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     "contents": [{
                         "parts": [
-                            { "text": aiPrompt }, // Usamos la nueva variable 'aiPrompt'
-                            {
-                                "inline_data": {
-                                    "mime_type": mimeType,
-                                    "data": base64Data
-                                }
-                            }
+                            { "text": aiPrompt },
+                            { "inline_data": { "mime_type": mimeType, "data": base64Data } }
                         ]
                     }],
-                    "generationConfig": {
-                        "response_mime_type": "application/json"
-                    }
+                    "generationConfig": { "response_mime_type": "application/json" }
                 })
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                
-                // Si el error es de autenticación (clave inválida o expirada), borramos la clave guardada
                 if (response.status === 400 || response.status === 403) {
                     localStorage.removeItem('gemini_api_key');
-                    throw new Error("La API Key es inválida o ha expirado. Por favor intente nuevamente.");
+                    throw new Error("Clave inválida o expirada. Intente nuevamente.");
                 }
-
-                console.error("Error API Gemini:", errorData);
-                throw new Error(`Error Gemini (${response.status}): ${errorData.error?.message || response.statusText}`);
+                throw new Error(`Error Gemini: ${errorData.error?.message || response.statusText}`);
             }
 
             const json = await response.json();
+            if (!json.candidates || !json.candidates[0].content) throw new Error("La IA no devolvió resultados.");
             
-            if (!json.candidates || !json.candidates[0].content) {
-                 throw new Error("La IA no devolvió resultados. Intente nuevamente.");
-            }
-            
-            const textResponse = json.candidates[0].content.parts[0].text;
-            return JSON.parse(textResponse);
+            return JSON.parse(json.candidates[0].content.parts[0].text);
         }
        function populateMovementFormFromAI(data) {
             // 1. Llenar cabecera
@@ -4604,6 +4600,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
