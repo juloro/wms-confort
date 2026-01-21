@@ -633,29 +633,63 @@
         }
         function renderTasksView() {
             const container = DOM.views.tareas;
+            
+            // 1. Datos existentes (Órdenes nuevas sin procesar)
             const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
-            container.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Tareas de Picking Pendientes</h2>
-                <div class="d-flex align-items-center">
-                    <div class="text-center me-3 p-2 bg-light rounded shadow-sm">
-                        <div class="fw-bold fs-4 text-primary">${ordenesSinEstado}</div>
-                        <small class="text-muted">ÓRDENES POR PROCESAR</small>
+
+            // 2. CÁLCULOS NUEVOS (Métricas de Picking Activo)
+            const pendingTasks = virtualTasks.filter(t => t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
+
+            // A) Suma total de unidades
+            const totalUnitsInPicking = pendingTasks.reduce((sum, t) => sum + t.totalQuantity, 0);
+
+            // B) Cantidad de órdenes únicas involucradas
+            // Usamos un Set para evitar duplicados si una misma orden pide varios productos distintos
+            const uniqueOrdersInPicking = new Set();
+            pendingTasks.forEach(t => {
+                if (t.orders && Array.isArray(t.orders)) {
+                    t.orders.forEach(o => uniqueOrdersInPicking.add(o.idVenta));
+                }
+            });
+            const totalOrdersCount = uniqueOrdersInPicking.size;
+
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="mb-2">Tareas de Picking</h2>
+                    <div class="d-flex gap-3">
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill">
+                            <span class="material-icons align-middle fs-6 me-1">shopping_cart</span>
+                            Órdenes en Picking: <strong class="fs-6">${totalOrdersCount}</strong>
+                        </span>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill">
+                            <span class="material-icons align-middle fs-6 me-1">layers</span>
+                            Unidades Totales: <strong class="fs-6">${totalUnitsInPicking}</strong>
+                        </span>
                     </div>
-                    <div class="btn-group">
-                        <button class="btn btn-secondary" data-action="download-tasks-pdf">
-                            <span class="material-icons align-middle me-1">picture_as_pdf</span> Descargar Lista (PDF)
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <div class="text-center me-3 p-2 bg-light rounded shadow-sm border">
+                        <div class="fw-bold fs-4 text-secondary">${ordenesSinEstado}</div>
+                        <small class="text-muted" style="font-size: 0.65rem;">POR PROCESAR</small>
+                    </div>
+                    <div class="btn-group shadow-sm">
+                        <button class="btn btn-outline-secondary" data-action="download-tasks-pdf" title="Descargar PDF">
+                            <span class="material-icons align-middle">picture_as_pdf</span>
                         </button>
                         <button class="btn btn-success" data-action="bulk-pick-tasks">
                             <span class="material-icons align-middle me-1">done_all</span> Picking Masivo
                         </button>
-                        <button class="btn btn-primary btn-lg" data-action="generate-tasks">
+                        <button class="btn btn-primary" data-action="generate-tasks">
                             <span class="material-icons align-middle me-1">play_for_work</span> Generar Tareas
                         </button>
                     </div>
                 </div>
             </div>
+
             <div class="table-responsive">
-                <table class="table table-hover bg-white rounded shadow-sm">
+                <table class="table table-hover bg-white rounded shadow-sm align-middle">
                     <thead class="table-light">
                         <tr>
                             <th>#</th><th>ID Producto</th><th>Nombre</th><th>Cant. Órdenes</th>
@@ -666,14 +700,28 @@
                     <tbody id="tasks-table-body"></tbody>
                 </table>
             </div>`;
+            
             generateVirtualTasks();
             const tableBody = document.getElementById('tasks-table-body');
             if(!tableBody) return;
+            
             if (virtualTasks.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">No hay tareas de picking pendientes.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-5">
+                    <span class="material-icons fs-1 d-block mb-2">assignment_turned_in</span>
+                    No hay tareas de picking generadas.<br>
+                    <small>Presione "Generar Tareas" para procesar las órdenes pendientes.</small>
+                </td></tr>`;
                 return;
             }
-            tableBody.innerHTML = virtualTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
+            
+            // Ordenar: Pendientes primero
+            const sortedTasks = [...virtualTasks].sort((a, b) => {
+                if (a.state === CONSTANTS.STATUS.PENDING && b.state !== CONSTANTS.STATUS.PENDING) return -1;
+                if (a.state !== CONSTANTS.STATUS.PENDING && b.state === CONSTANTS.STATUS.PENDING) return 1;
+                return 0;
+            });
+
+            tableBody.innerHTML = sortedTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
         }
         function renderProductsView() {
             const container = DOM.views.productos;
@@ -4600,6 +4648,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
