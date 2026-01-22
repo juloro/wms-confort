@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="sheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
@@ -173,40 +173,7 @@
             font-size: 1.75rem;
             font-weight: 700;
         }
-/* ESTILOS INVENTARIO MÓVIL */
-        .mobile-inv-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: #f0f2f5; z-index: 10000;
-            display: flex; flex-direction: column;
-            overflow-y: auto;
-        }
-        .mobile-inv-header {
-            background: #0d6efd; color: white; padding: 15px;
-            display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .mobile-inv-body { flex-grow: 1; padding: 15px; }
-        .inv-card {
-            background: white; border-radius: 12px; padding: 15px;
-            margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .inv-qty-control {
-            display: flex; align-items: center; gap: 10px; margin-top: 10px;
-        }
-        .btn-qty {
-            width: 45px; height: 45px; border-radius: 50%; border: none;
-            font-size: 1.5rem; display: flex; align-items: center; justify-content: center;
-        }
-        .btn-qty.minus { background-color: #e9ecef; color: #dc3545; }
-        .btn-qty.plus { background-color: #e9ecef; color: #198754; }
-        .qty-input {
-            text-align: center; font-size: 1.5rem; font-weight: bold;
-            border: none; border-bottom: 2px solid #ced4da; width: 80px;
-        }
-        .scan-box {
-            background: white; padding: 20px; border-radius: 15px;
-            text-align: center; margin-top: 20%;
-        }
+
     </style>
 </head>
 <body>
@@ -1137,19 +1104,19 @@
             container.innerHTML = `
                 <style>
                     .span-2 { grid-column: span 2; }
-                    /* ... tus otros spans ... */
+                    .span-3 { grid-column: span 3; }
+                    .span-4 { grid-column: span 4; }
+                    .span-9 { grid-column: span 9; }
+                    .span-10 { grid-column: span 10; }
+                    .span-11 { grid-column: span 11; }
                 </style>
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="mb-0">Mapa de Ubicaciones</h2>
-                    <div class="d-flex align-items-center gap-2">
-                        <button class="btn btn-dark shadow-sm" onclick="startMobileInventory()">
-                            <span class="material-icons align-middle me-1">smartphone</span> Modo PDA
-                        </button>
-                        <div class="d-none d-md-block">
-                            <span class="badge me-2" style="background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da;">Libre</span>
-                            <span class="badge me-2 map-block-green">Reciente</span>
-                            <span class="badge map-block-red">Vencido</span>
-                        </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge me-2" style="background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da;">Libre</span>
+                        <span class="badge me-2 map-block-green">Reciente (&lt;30d)</span>
+                        <span class="badge me-2 map-block-yellow">Advertencia (31-59d)</span>
+                        <span class="badge map-block-red">Vencido (&ge;60d)</span>
                     </div>
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
@@ -4901,250 +4868,6 @@ async function bulkPickTasks() {
         });
 
     })();
-        let mobileInvSession = {
-            location: null,
-            items: []
-        };
-
-        function startMobileInventory() {
-            // Inyectamos el contenedor overlay
-            const overlay = document.createElement('div');
-            overlay.id = 'mobile-inv-overlay';
-            overlay.className = 'mobile-inv-container';
-            document.body.appendChild(overlay);
-            
-            document.body.style.overflow = 'hidden'; // Bloquear scroll del fondo
-            renderMobileInvScanScreen();
-        }
-
-        function closeMobileInventory() {
-            const overlay = document.getElementById('mobile-inv-overlay');
-            if (overlay) overlay.remove();
-            document.body.style.overflow = '';
-            mobileInvSession = { location: null, items: [] };
-        }
-
-        // PANTALLA 1: ESCANEO DE UBICACIÓN
-        function renderMobileInvScanScreen() {
-            const container = document.getElementById('mobile-inv-overlay');
-            container.innerHTML = `
-                <div class="mobile-inv-header">
-                    <h5 class="mb-0">Inventario PDA</h5>
-                    <button class="btn btn-sm btn-outline-light" onclick="closeMobileInventory()">Salir</button>
-                </div>
-                <div class="mobile-inv-body">
-                    <div class="scan-box shadow">
-                        <span class="material-icons text-primary" style="font-size: 4rem;">qr_code_scanner</span>
-                        <h4 class="mt-3">Escanear Ubicación</h4>
-                        <p class="text-muted">Escanee o escriba la posición a controlar</p>
-                        
-                        <input type="text" id="mobile-loc-input" class="form-control form-control-lg text-center fw-bold mt-3 text-uppercase" placeholder="Ej: A-01-01">
-                        
-                        <button class="btn btn-primary w-100 btn-lg mt-3" onclick="processMobileLocation()">
-                            COMENZAR CONTEO
-                        </button>
-                    </div>
-                </div>`;
-            
-            setTimeout(() => {
-                const input = document.getElementById('mobile-loc-input');
-                input.focus();
-                input.addEventListener('keypress', (e) => { if(e.key === 'Enter') processMobileLocation(); });
-            }, 300);
-        }
-
-        function processMobileLocation() {
-            const locInput = document.getElementById('mobile-loc-input');
-            const location = locInput.value.trim().toUpperCase();
-            
-            if (!validLocations.has(location)) {
-                alert("❌ Ubicación no válida o no existe en el mapa.");
-                locInput.value = '';
-                locInput.focus();
-                return;
-            }
-
-            mobileInvSession.location = location;
-            renderMobileInvCountScreen(location);
-        }
-
-        // PANTALLA 2: CONTEO DE PRODUCTOS
-        function renderMobileInvCountScreen(location) {
-            const container = document.getElementById('mobile-inv-overlay');
-            
-            // Buscar qué productos hay en esa ubicación según sistema
-            const productsInLoc = [];
-            fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
-                const qty = locationsMap.get(location);
-                if (qty > 0) {
-                    const prod = fullData.productos.find(p => p[0] === productId);
-                    productsInLoc.push({
-                        id: productId,
-                        name: prod ? prod[1] : 'Desconocido',
-                        systemQty: qty,
-                        phyQty: qty // Por defecto sugerimos lo que dice el sistema
-                    });
-                }
-            });
-
-            mobileInvSession.items = productsInLoc;
-            
-            const rowsHTML = productsInLoc.map((item, index) => generateMobileInvRow(item, index)).join('');
-
-            container.innerHTML = `
-                <div class="mobile-inv-header sticky-top">
-                    <div>
-                        <small class="d-block opacity-75">Controlando</small>
-                        <h4 class="mb-0 fw-bold">${location}</h4>
-                    </div>
-                    <button class="btn btn-sm btn-outline-light" onclick="renderMobileInvScanScreen()">Cambiar</button>
-                </div>
-                <div class="mobile-inv-body">
-                    <div id="mobile-inv-list">${rowsHTML}</div>
-                    
-                    <button class="btn btn-outline-primary w-100 mb-4 py-3 border-2 border-dashed" onclick="addMobileExtraProduct()">
-                        <span class="material-icons align-middle">add_circle</span> AGREGAR PRODUCTO NO LISTADO
-                    </button>
-
-                    <div class="card shadow-sm p-3 sticky-bottom bg-white border-top">
-                        <label class="form-label text-muted small">Nota (Opcional)</label>
-                        <input type="text" id="mobile-inv-note" class="form-control mb-3" placeholder="Ej: Caja rota, polvoriento...">
-                        <button class="btn btn-success w-100 btn-lg fw-bold" onclick="saveMobileInventory()">
-                            <span class="material-icons align-middle me-2">save</span> CONFIRMAR CONTROL
-                        </button>
-                    </div>
-                </div>`;
-        }
-
-        function generateMobileInvRow(item, index) {
-            return `
-            <div class="inv-card" id="inv-item-${index}" data-id="${item.id}" data-sys="${item.systemQty}">
-                <div class="d-flex justify-content-between">
-                    <h6 class="fw-bold text-truncate mb-1" style="max-width: 80%;">${item.name}</h6>
-                    <span class="badge bg-light text-dark border">Sys: ${item.systemQty}</span>
-                </div>
-                <small class="text-muted">ID: ${item.id}</small>
-                
-                <div class="inv-qty-control">
-                    <button class="btn-qty minus" onclick="adjustMobileQty(${index}, -1)">−</button>
-                    <input type="number" class="qty-input form-control" id="qty-input-${index}" value="${item.phyQty}" min="0" onchange="checkDiff(${index})">
-                    <button class="btn-qty plus" onclick="adjustMobileQty(${index}, 1)">+</button>
-                </div>
-                <div id="diff-indicator-${index}" class="mt-2 small fw-bold text-center text-success">OK</div>
-            </div>`;
-        }
-
-        window.adjustMobileQty = (index, delta) => {
-            const input = document.getElementById(`qty-input-${index}`);
-            let val = parseInt(input.value) || 0;
-            val = Math.max(0, val + delta);
-            input.value = val;
-            checkDiff(index);
-        };
-
-        window.checkDiff = (index) => {
-            const input = document.getElementById(`qty-input-${index}`);
-            const row = document.getElementById(`inv-item-${index}`);
-            const sys = parseInt(row.dataset.sys);
-            const phy = parseInt(input.value) || 0;
-            const diff = phy - sys;
-            const indicator = document.getElementById(`diff-indicator-${index}`);
-
-            if (diff === 0) {
-                indicator.className = "mt-2 small fw-bold text-center text-success";
-                indicator.textContent = "COINCIDE";
-            } else if (diff < 0) {
-                indicator.className = "mt-2 small fw-bold text-center text-danger";
-                indicator.textContent = `FALTAN ${Math.abs(diff)}`;
-            } else {
-                indicator.className = "mt-2 small fw-bold text-center text-primary";
-                indicator.textContent = `SOBRAN ${diff}`;
-            }
-        };
-
-        function addMobileExtraProduct() {
-            const id = prompt("Ingrese ID del producto encontrado:");
-            if(!id) return;
-            
-            const product = fullData.productos.find(p => String(p[0]) === id);
-            if(!product) return alert("Producto no encontrado en base de datos.");
-
-            const newItem = {
-                id: product[0],
-                name: product[1],
-                systemQty: 0, // No se esperaba
-                phyQty: 1
-            };
-            
-            // Agregamos al array visual
-            const index = document.querySelectorAll('.inv-card').length;
-            const html = generateMobileInvRow(newItem, index);
-            document.getElementById('mobile-inv-list').insertAdjacentHTML('beforeend', html);
-            checkDiff(index); // Marcará "SOBRAN 1"
-            
-            // Scroll al nuevo elemento
-            document.getElementById(`inv-item-${index}`).scrollIntoView({behavior: "smooth"});
-        }
-
-        async function saveMobileInventory() {
-            if(!confirm("¿Confirmar conteo de inventario?")) return;
-
-            const location = mobileInvSession.location;
-            const note = document.getElementById('mobile-inv-note').value;
-            const cards = document.querySelectorAll('.inv-card');
-            
-            // Reiniciamos colas globales del sistema principal para usar su lógica de guardado
-            adjustmentQueue = [];
-            pendingControlRows = [];
-            pendingMovementRows = [];
-            currentAdjustmentLocation = location;
-            currentControlNote = note;
-
-            const timestamp = getTimestamp();
-            const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
-
-            cards.forEach((card, index) => {
-                const productId = card.dataset.id;
-                const productName = card.querySelector('h6').textContent;
-                const sysStock = parseInt(card.dataset.sys);
-                const phyStock = parseInt(document.getElementById(`qty-input-${index}`).value) || 0;
-                
-                const adjustment = phyStock - sysStock;
-
-                // 1. Registro del Control
-                pendingControlRows.push([ 
-                    controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, 
-                    productId, productName, location, sysStock, phyStock, adjustment, note 
-                ]);
-
-                // 2. Gestión de Diferencias (Reusamos la lógica potente que ya tienes)
-                if (adjustment < 0) {
-                    // Pérdida automática
-                    pendingMovementRows.push([ 
-                        productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp 
-                    ]);
-                } else if (adjustment > 0) {
-                    // Sobrante -> Cola de preguntas (Nuevo vs Mudanza)
-                    adjustmentQueue.push({
-                        productId, productName, quantity: adjustment, location
-                    });
-                }
-            });
-
-            // Cerrar la vista móvil
-            closeMobileInventory();
-            showLoading(true, "Procesando control...");
-
-            // Usamos la lógica de flujo existente
-            if (adjustmentQueue.length > 0) {
-                // Si hay sobrantes, iniciamos el flujo de preguntas (los modales se abrirán sobre el sistema normal)
-                showLoading(false);
-                processNextAdjustment(); 
-            } else {
-                // Si todo cuadra o solo faltan cosas, guardamos directo
-                finalizeControlSave();
-            }
-        }
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -5153,28 +4876,3 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
