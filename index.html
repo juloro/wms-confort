@@ -217,7 +217,8 @@
                     <li class="nav-item"><a class="nav-link" data-view="ubicaciones">Ubicaciones</a></li>
                     <li class="nav-item"><a class="nav-link" data-view="remitos">Remitos</a></li>
                     <li class="nav-item"><a class="nav-link" data-view="controles">Controles</a></li>
-                </ul>
+                    <li class="nav-item"><a class="nav-link" data-view="reportes">Reportes</a></li>
+</ul>
                 <div class="d-flex align-items-center">
                     <button id="refresh_button" class="btn btn-outline-primary me-2" title="Actualizar Datos">
                         <span class="material-icons align-middle">refresh</span>
@@ -239,7 +240,8 @@
         <div id="ubicaciones" class="view"></div>
         <div id="remitos" class="view"></div>
         <div id="controles" class="view"></div>
-    </main>
+        <div id="reportes" class="view"></div> 
+</main>
 
   <footer id="mainFooter" class="footer mt-auto d-none">
         <div class="container">
@@ -1095,6 +1097,113 @@
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
         }
+        // --- MÓDULO DE REPORTES GERENCIALES (NUEVO) ---
+
+        function renderReportesView() {
+            const container = DOM.views.reportes; // Nota: Asegúrate de haber hecho el paso 3
+            if(!container) return; // Protección
+
+            const today = new Date();
+            const currentMonth = today.getMonth() + 1; 
+            const currentYear = today.getFullYear();
+            const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const monthOptions = months.map((m, i) => `<option value="${i + 1}" ${i + 1 === currentMonth ? 'selected' : ''}>${m}</option>`).join('');
+            
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Reporte Mensual de Gestión</h2>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="report-month" style="width: 150px;">${monthOptions}</select>
+                    <select class="form-select" id="report-year" style="width: 100px;">
+                        <option value="${currentYear}">${currentYear}</option>
+                        <option value="${currentYear - 1}">${currentYear - 1}</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="generateDashboardReport()">Actualizar</button>
+                    <button class="btn btn-danger" onclick="downloadExecutivePresentation()">Exportar PDF</button>
+                </div>
+            </div>
+            <div id="report-content" class="fade-in">
+                <div class="text-center py-5 text-muted"><p>Cargando métricas...</p></div>
+            </div>`;
+            
+            setTimeout(generateDashboardReport, 100);
+        }
+
+        window.generateDashboardReport = () => {
+            const selectedMonth = parseInt(document.getElementById('report-month').value);
+            const selectedYear = parseInt(document.getElementById('report-year').value);
+            
+            const isDateInPeriod = (dateStr) => {
+                if (!dateStr) return false;
+                // Soporta dd/mm/yyyy y yyyy-mm-dd
+                const parts = dateStr.split(' ')[0].split(/[-/]/);
+                let m, y;
+                if (parts[0].length === 4) { y = parseInt(parts[0]); m = parseInt(parts[1]); } // YYYY-MM-DD
+                else { m = parseInt(parts[1]); y = parseInt(parts[2]); } // DD/MM/YYYY
+                return m === selectedMonth && y === selectedYear;
+            };
+
+            const reportOrders = (fullData.ordenes || []).filter(o => isDateInPeriod(o[0]));
+            const reportMovements = (fullData.movimientos || []).filter(m => isDateInPeriod(m[5]));
+            const reportControls = (fullData.controles || []).filter(c => isDateInPeriod(c[1]));
+
+            // Métricas
+            const totalOrders = reportOrders.length;
+            const totalUnitsSold = reportOrders.reduce((sum, o) => sum + (parseInt(o[4]) || 0), 0);
+            const incidenceOrders = reportOrders.filter(o => o[6] === 'INCIDENCIA').length;
+            const incidenceRate = totalOrders > 0 ? ((incidenceOrders / totalOrders) * 100).toFixed(1) : 0;
+            
+            const purchaseMoves = reportMovements.filter(m => m[4] === 'INGRESO');
+            const itemsPurchased = purchaseMoves.reduce((sum, m) => sum + (parseInt(m[2]) || 0), 0);
+            const locationsControlled = new Set(reportControls.map(c => c[5])).size;
+
+            // HTML
+            const container = document.getElementById('report-content');
+            if(!container) return;
+
+            container.innerHTML = `
+                <div class="row g-4">
+                    <div class="col-md-3"><div class="card shadow-sm h-100 border-start border-4 border-primary"><div class="card-body">
+                        <h6 class="text-muted text-uppercase">Ventas</h6><h2 class="mb-0">${totalOrders}</h2><small class="text-success">${totalUnitsSold} unid.</small>
+                    </div></div></div>
+                    <div class="col-md-3"><div class="card shadow-sm h-100 border-start border-4 border-success"><div class="card-body">
+                        <h6 class="text-muted text-uppercase">Compras</h6><h2 class="mb-0">${itemsPurchased}</h2><small>${purchaseMoves.length} movs.</small>
+                    </div></div></div>
+                    <div class="col-md-3"><div class="card shadow-sm h-100 border-start border-4 border-warning"><div class="card-body">
+                        <h6 class="text-muted text-uppercase">Incidencias</h6><h2 class="mb-0">${incidenceRate}%</h2><small class="text-danger">${incidenceOrders} órdenes</small>
+                    </div></div></div>
+                    <div class="col-md-3"><div class="card shadow-sm h-100 border-start border-4 border-info"><div class="card-body">
+                        <h6 class="text-muted text-uppercase">Auditoría</h6><h2 class="mb-0">${locationsControlled}</h2><small>Ubicaciones</small>
+                    </div></div></div>
+                </div>`;
+            
+            // Guardar para PDF
+            window.lastReportData = { month: selectedMonth, year: selectedYear, kpis: { totalOrders, totalUnitsSold, itemsPurchased, incidenceRate, locationsControlled } };
+        };
+
+        window.downloadExecutivePresentation = () => {
+            if (!window.lastReportData) return alert("Genere el reporte primero.");
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            const data = window.lastReportData;
+            
+            doc.setFillColor(13, 110, 253); doc.rect(0, 0, 297, 25, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.text("REPORTE GERENCIAL", 15, 17);
+            
+            doc.setTextColor(0,0,0); doc.setFontSize(40); 
+            doc.text(`${data.month}/${data.year}`, 148, 100, { align: 'center' });
+            
+            doc.addPage();
+            doc.setFontSize(18); doc.text("Resumen Operativo", 15, 20);
+            
+            doc.setFontSize(12);
+            doc.text(`Ventas: ${data.kpis.totalOrders} órdenes (${data.kpis.totalUnitsSold} u.)`, 20, 40);
+            doc.text(`Compras: ${data.kpis.itemsPurchased} u. ingresadas`, 20, 50);
+            doc.text(`Tasa de Incidencia: ${data.kpis.incidenceRate}%`, 20, 60);
+            doc.text(`Auditoría: ${data.kpis.locationsControlled} ubicaciones controladas`, 20, 70);
+            
+            doc.save(`Reporte_${data.month}_${data.year}.pdf`);
+        };
         // --- 6. FUNCIONES DE AYUDA Y UTILIDADES ---
 
         const sanitizeHTML = (val) => {
@@ -4635,6 +4744,8 @@ async function bulkPickTasks() {
                     ubicaciones: document.getElementById('ubicaciones'),
                     remitos: document.getElementById('remitos'),
                     controles: document.getElementById('controles'),
+                    // NUEVO
+                    reportes: document.getElementById('reportes'),
                 }
             };
             
@@ -4652,6 +4763,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
