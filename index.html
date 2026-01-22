@@ -390,49 +390,50 @@
         // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
 
         async function loadInitialData() {
-            showLoading(true, "Cargando datos del sistema...");
+            showLoading(true, 'Actualizando datos...');
             try {
-                // ... (tu código de rangos actual) ...
+                // 1. Descarga de datos (Método batchGet correcto)
+                const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
+                    spreadsheetId: CONFIG.SPREADSHEET_ID, 
+                    ranges: Object.values(CONSTANTS.RANGES) 
+                });
+                const valueRanges = response.result.valueRanges;
                 
-                // NOTA: Asegúrate de mantener el orden de tus rangos.
-                // Supongamos que 'controles' es el índice 4 o 5 según tus cambios recientes.
-                // Aquí usaré el nombre genérico para que veas la lógica del filtro.
-
-                const results = await Promise.all([
-                    readSheet(CONSTANTS.RANGES.productos),
-                    readSheet(CONSTANTS.RANGES.movimientos),
-                    readSheet(CONSTANTS.RANGES.ubicaciones), // Nombres
-                    readSheet(CONSTANTS.RANGES.ordenes),
-                    readSheet(CONSTANTS.RANGES.controles), // <--- ESTE ES EL QUE IMPORTA
-                    readSheet(CONSTANTS.RANGES.usuarios),
-                    // ... otros rangos como devoluciones ...
-                ]);
-
-                fullData.productos = results[0] || [];
+                // 2. Asignación de datos a variables
+                Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
+                    fullData[name] = valueRanges[index]?.values || [];
+                });
                 
-                // --- FILTRO DE SEGURIDAD PARA MOVIMIENTOS ---
-                // Solo cargamos movimientos que tengan ID de producto (columna 0)
-                fullData.movimientos = (results[1] || []).filter(row => row[0] && row[0].toString().trim() !== '');
+                // --- 3. FILTROS DE LIMPIEZA (Corrección del problema de filas vacías) ---
                 
-                fullData.ubicacionesNombres = (results[2] || []).map(r => r[0]);
-                fullData.ordenes = results[3] || [];
+                // Filtro para CONTROLES: Elimina filas que no tengan ID de Control (col 0) ni ID Producto (col 3)
+                if (fullData.controles) {
+                    fullData.controles = fullData.controles.filter(row => 
+                        row[0] && row[0].toString().trim() !== '' && 
+                        row[3] && row[3].toString().trim() !== ''
+                    );
+                }
+
+                // Filtro para MOVIMIENTOS: Elimina filas sin ID de producto
+                if (fullData.movimientos) {
+                    fullData.movimientos = fullData.movimientos.filter(row => 
+                        row[0] && row[0].toString().trim() !== ''
+                    );
+                }
                 
-                // --- FILTRO DE SEGURIDAD PARA CONTROLES (CORRECCIÓN A TU PROBLEMA) ---
-                // Filtramos: Solo aceptamos filas donde la Columna 0 (ID Control) Y la Columna 3 (ID Producto) existan.
-                // Esto elimina filas vacías o con basura solo en las notas.
-                fullData.controles = (results[4] || []).filter(row => 
-                    row[0] && row[0].toString().trim() !== '' && 
-                    row[3] && row[3].toString().trim() !== ''
-                );
+                // 4. Copia de seguridad y Procesamiento
+                originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
+                
+                // --- ESTAS SON LAS LÍNEAS QUE FALTABAN Y HACÍAN QUE NO CARGARA NADA ---
+                processAndCalculateStock();
+                processRemitos();
+                processControlDates();
+                sortProducts('id', true); 
+                renderAllViews();
+                // ----------------------------------------------------------------------
 
-                fullData.usuarios = results[5] || [];
-                // ... resto de asignaciones ...
-
-                // ... (cálculo de stocks y dashboards) ...
-
-            } catch (error) {
-                console.error("Error cargando datos:", error);
-                showError("No se pudieron cargar los datos: " + error.message);
+            } catch (err) {
+                handleApiError(err);
             } finally {
                 showLoading(false);
             }
@@ -4786,6 +4787,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
