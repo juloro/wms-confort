@@ -173,7 +173,21 @@
             font-size: 1.75rem;
             font-weight: 700;
         }
-
+        /* ESTILOS INVENTARIO MÓVIL (PDA) */
+        .mobile-inv-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f0f2f5; z-index: 10000; display: flex; flex-direction: column; overflow-y: auto; font-family: 'Inter', sans-serif; }
+        .mobile-inv-header { background: #0d6efd; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 10010; }
+        .mobile-inv-body { flex-grow: 1; padding: 15px; padding-bottom: 80px; }
+        .inv-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #6c757d; }
+        .inv-card.ok { border-left-color: #198754; }
+        .inv-card.diff { border-left-color: #dc3545; }
+        .inv-qty-control { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+        .btn-qty { width: 50px; height: 50px; border-radius: 12px; border: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: active 0.1s; }
+        .btn-qty:active { transform: scale(0.95); }
+        .btn-qty.minus { background-color: #fff0f1; color: #dc3545; border: 1px solid #ffc9c9; }
+        .btn-qty.plus { background-color: #f0fff4; color: #198754; border: 1px solid #b7ebc7; }
+        .qty-input { text-align: center; font-size: 1.8rem; font-weight: bold; border: none; border-bottom: 2px solid #ced4da; width: 100px; background: transparent; }
+        .qty-input:focus { outline: none; border-color: #0d6efd; }
+        .scan-box { background: white; padding: 30px 20px; border-radius: 20px; text-align: center; margin-top: 15%; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
@@ -1112,11 +1126,18 @@
                 </style>
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="mb-0">Mapa de Ubicaciones</h2>
-                    <div class="d-flex align-items-center">
-                        <span class="badge me-2" style="background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da;">Libre</span>
-                        <span class="badge me-2 map-block-green">Reciente (&lt;30d)</span>
-                        <span class="badge me-2 map-block-yellow">Advertencia (31-59d)</span>
-                        <span class="badge map-block-red">Vencido (&ge;60d)</span>
+                    
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-dark shadow-sm" onclick="startMobileInventory()">
+                            <span class="material-icons align-middle me-1">smartphone</span> Modo PDA
+                        </button>
+                        
+                        <div class="d-none d-md-flex align-items-center ms-3">
+                            <span class="badge me-2" style="background-color: #ffffff; color: #6c757d; border: 1px dashed #ced4da;">Libre</span>
+                            <span class="badge me-2 map-block-green">Reciente (&lt;30d)</span>
+                            <span class="badge me-2 map-block-yellow">Advertencia</span>
+                            <span class="badge map-block-red">Vencido</span>
+                        </div>
                     </div>
                 </div>
                 <div class="map-container">${mapHTML}</div>`;
@@ -1423,7 +1444,100 @@
                 .slice(0, 5)
                 .map(item => item.product);
         }
+        // --- MÓDULO DE INVENTARIO MÓVIL (PDA) ---
+        let mobileInvSession = { location: null, items: [] };
 
+        window.startMobileInventory = () => {
+            const overlay = document.createElement('div');
+            overlay.id = 'mobile-inv-overlay'; overlay.className = 'mobile-inv-container';
+            document.body.appendChild(overlay); document.body.style.overflow = 'hidden';
+            renderMobileInvScanScreen();
+        };
+
+        window.closeMobileInventory = () => {
+            const overlay = document.getElementById('mobile-inv-overlay');
+            if (overlay) overlay.remove();
+            document.body.style.overflow = ''; mobileInvSession = { location: null, items: [] };
+        };
+
+        function renderMobileInvScanScreen() {
+            const container = document.getElementById('mobile-inv-overlay');
+            if(!container) return;
+            container.innerHTML = `<div class="mobile-inv-header"><h5 class="mb-0 fw-bold">Inventario PDA</h5><button class="btn btn-sm btn-close btn-close-white" onclick="closeMobileInventory()"></button></div><div class="mobile-inv-body"><div class="scan-box"><span class="material-icons text-primary" style="font-size: 5rem;">qr_code_scanner</span><h3 class="mt-3 fw-bold">Escanear Posición</h3><p class="text-muted mb-4">Ingrese la ubicación a controlar</p><input type="text" id="mobile-loc-input" class="form-control form-control-lg text-center fw-bold text-uppercase mb-3" style="font-size: 2rem; letter-spacing: 2px;" placeholder="A-01-01"><button class="btn btn-primary w-100 btn-lg py-3 fw-bold shadow-sm" onclick="processMobileLocation()">COMENZAR CONTEO</button></div></div>`;
+            setTimeout(() => { const input = document.getElementById('mobile-loc-input'); if(input) { input.focus(); input.addEventListener('keypress', (e) => { if(e.key === 'Enter') processMobileLocation(); }); } }, 300);
+        }
+
+        function processMobileLocation() {
+            const locInput = document.getElementById('mobile-loc-input');
+            const location = locInput.value.trim().toUpperCase();
+            if (!validLocations.has(location)) { alert("❌ Ubicación no encontrada en el mapa."); locInput.value = ''; locInput.focus(); return; }
+            mobileInvSession.location = location; renderMobileInvCountScreen(location);
+        }
+
+        function renderMobileInvCountScreen(location) {
+            const container = document.getElementById('mobile-inv-overlay');
+            const productsInLoc = [];
+            fullData.stockPorUbicacion.forEach((locationsMap, productId) => {
+                const qty = locationsMap.get(location);
+                if (qty > 0) {
+                    const prod = fullData.productos.find(p => p[0] === productId);
+                    productsInLoc.push({ id: productId, name: prod ? prod[1] : 'Producto Desconocido', systemQty: qty, phyQty: qty });
+                }
+            });
+            productsInLoc.sort((a,b) => a.name.localeCompare(b.name));
+            mobileInvSession.items = productsInLoc;
+            const rowsHTML = productsInLoc.map((item, index) => generateMobileInvRow(item, index)).join('');
+
+            container.innerHTML = `<div class="mobile-inv-header"><div><small class="opacity-75" style="font-size: 0.8rem;">Controlando:</small><h4 class="mb-0 fw-bold">${location}</h4></div><button class="btn btn-sm btn-outline-light" onclick="renderMobileInvScanScreen()">Cambiar</button></div><div class="mobile-inv-body"><div id="mobile-inv-list">${rowsHTML}</div><button class="btn btn-outline-primary w-100 py-3 border-2 border-dashed fw-bold mb-5" onclick="addMobileExtraProduct()"><span class="material-icons align-middle me-1">add_circle</span> AGREGAR PRODUCTO</button></div><div class="fixed-bottom bg-white p-3 border-top shadow-lg" style="z-index: 10020;"><div class="input-group mb-2"><span class="input-group-text bg-light border-0"><span class="material-icons">sticky_note_2</span></span><input type="text" id="mobile-inv-note" class="form-control border-0 bg-light" placeholder="Nota del control (opcional)..."></div><button class="btn btn-success w-100 btn-lg fw-bold shadow" onclick="saveMobileInventory()"><span class="material-icons align-middle me-2">save</span> CONFIRMAR CONTROL</button></div>`;
+        }
+
+        function generateMobileInvRow(item, index) {
+            return `<div class="inv-card ok" id="inv-card-${index}" data-id="${item.id}" data-sys="${item.systemQty}"><div class="d-flex justify-content-between align-items-start"><div><h6 class="fw-bold mb-1 text-dark">${item.name}</h6><small class="text-muted">ID: ${item.id}</small></div><span class="badge bg-light text-dark border">Sys: ${item.systemQty}</span></div><div class="inv-qty-control"><button class="btn-qty minus" onclick="adjustMobileQty(${index}, -1)"><span class="material-icons">remove</span></button><input type="number" class="qty-input" id="qty-input-${index}" value="${item.phyQty}" min="0" onchange="checkDiff(${index})" onclick="this.select()"><button class="btn-qty plus" onclick="adjustMobileQty(${index}, 1)"><span class="material-icons">add</span></button></div><div id="diff-msg-${index}" class="mt-2 text-center small fw-bold text-success" style="opacity: 0.8;">Coincide</div></div>`;
+        }
+
+        window.adjustMobileQty = (index, delta) => {
+            const input = document.getElementById(`qty-input-${index}`);
+            let val = parseInt(input.value) || 0; val = Math.max(0, val + delta); input.value = val; checkDiff(index);
+        };
+
+        window.checkDiff = (index) => {
+            const input = document.getElementById(`qty-input-${index}`);
+            const card = document.getElementById(`inv-card-${index}`);
+            const msg = document.getElementById(`diff-msg-${index}`);
+            const sys = parseInt(card.dataset.sys); const phy = parseInt(input.value) || 0; const diff = phy - sys;
+            card.classList.remove('ok', 'diff');
+            if (diff === 0) { card.classList.add('ok'); msg.className = "mt-2 text-center small fw-bold text-success"; msg.textContent = "✓ Coincide"; } 
+            else { card.classList.add('diff'); if (diff < 0) { msg.className = "mt-2 text-center small fw-bold text-danger"; msg.textContent = `⚠ Faltan ${Math.abs(diff)}`; } else { msg.className = "mt-2 text-center small fw-bold text-primary"; msg.textContent = `⚠ Sobran ${diff}`; } }
+        };
+
+        window.addMobileExtraProduct = () => {
+            const id = prompt("Ingrese ID del producto encontrado:"); if(!id) return;
+            const product = fullData.productos.find(p => String(p[0]) === id);
+            if(!product) return alert("❌ Producto no encontrado.");
+            const newItem = { id: product[0], name: product[1], systemQty: 0, phyQty: 1 };
+            const list = document.getElementById('mobile-inv-list'); const index = list.children.length;
+            list.insertAdjacentHTML('beforeend', generateMobileInvRow(newItem, index));
+            checkDiff(index); document.getElementById(`inv-card-${index}`).scrollIntoView({behavior: "smooth"});
+        };
+
+        window.saveMobileInventory = () => {
+            if(!confirm("¿Está seguro de confirmar este inventario?")) return;
+            const location = mobileInvSession.location; const note = document.getElementById('mobile-inv-note').value;
+            const cards = document.querySelectorAll('.inv-card');
+            adjustmentQueue = []; pendingControlRows = []; pendingMovementRows = []; currentAdjustmentLocation = location; currentControlNote = note;
+            const timestamp = getTimestamp(); const controlId = `${CONSTANTS.CONTROL_ID_PREFIX}${Date.now()}`;
+
+            cards.forEach((card, index) => {
+                const productId = card.dataset.id; const productName = card.querySelector('h6').textContent;
+                const sysStock = parseInt(card.dataset.sys); const phyStock = parseInt(document.getElementById(`qty-input-${index}`).value) || 0;
+                const adjustment = phyStock - sysStock;
+                pendingControlRows.push([ controlId, timestamp, CONSTANTS.CONTROL_TYPE.LOCATION_COUNT, productId, productName, location, sysStock, phyStock, adjustment, note ]);
+                if (adjustment < 0) { pendingMovementRows.push([ productId, productName, adjustment, location, CONSTANTS.MOVEMENT_TYPE.ADJUSTMENT, timestamp ]); } 
+                else if (adjustment > 0) { adjustmentQueue.push({ productId, productName, quantity: adjustment, location }); }
+            });
+            closeMobileInventory();
+            if (adjustmentQueue.length > 0) { processNextAdjustment(); } else { finalizeControlSave(); }
+        };
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -4876,3 +4990,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
