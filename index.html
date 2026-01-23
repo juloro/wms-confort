@@ -3841,6 +3841,60 @@
             if (inputMap[target.id]) inputMap[target.id]();
             
             const action = target.dataset.action;
+            
+            // --- INICIO BLOQUE DE ANULACIÓN ---
+            if (action === 'cancel-order') {
+                const index = parseInt(target.dataset.orderIndex);
+                const order = fullData.ordenes[index];
+                
+                // Validación de seguridad
+                if (!order) return;
+
+                const currentStatus = (order[6] || '').toUpperCase(); 
+                const prodId = order[3];
+                const prodName = order[2];
+                const qty = parseInt(order[4]) || 1;
+
+                if (!confirm(`⚠️ ¿Está seguro de ANULAR esta orden?\n\nSi la orden ya fue preparada, el stock regresará a la ubicación Z00.`)) return;
+
+                // Ocultar modal si existe
+                if (activeModals['editOrderModal']) activeModals['editOrderModal'].hide();
+                
+                showLoading(true, "Anulando orden...");
+
+                try {
+                    const updates = [];
+                    const timestamp = getTimestamp();
+
+                    // 1. Marcar como CANCELADO en hoja Ordenes (Columna G es la 6, +2 por cabecera y base 0)
+                    updates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`,
+                        values: [['CANCELADO']]
+                    });
+
+                    // 2. Devolver stock a Z00 (Solo si ya estaba preparada/despachada)
+                    // Estados que implican que la mercadería ya salió del stock:
+                    const estadosSalida = ['PICKED', 'SHIPPED', 'DESPACHADO', 'PREPARADO', 'ENTREGADO'];
+                    
+                    if (estadosSalida.includes(currentStatus)) {
+                        const movementRow = [prodId, prodName, qty, 'Z00', 'CANCELACION', timestamp];
+                        await appendToSheet(CONSTANTS.RANGES.movimientos, [movementRow]);
+                        alert(`Orden Anulada.\nEl stock ha vuelto a Z00 para ser reubicado.`);
+                    } else {
+                        alert("Orden Anulada correctamente.\n(No se generaron movimientos de stock porque la orden estaba Pendiente).");
+                    }
+
+                    await batchUpdateSheet(updates);
+                    await loadInitialData();
+                } catch (error) {
+                    console.error(error);
+                    alert("Error al anular: " + error.message);
+                } finally {
+                    showLoading(false);
+                }
+                return; // Detener ejecución aquí
+            }
+            // --- FIN BLOQUE DE ANULACIÓN ---
             if (action === 'search-products-for-movement') {
                 searchProductsForMovement(target, 'select-product-for-movement');
             } else if (action === 'search-products-for-control') {
@@ -4228,11 +4282,8 @@
             const order = fullData.ordenes[index];
             if (!order) return alert('Error: No se pudo cargar la orden.');
             
-            // Estado actual
             const currentStatus = (order[6] || '').toUpperCase();
             const isCancelled = currentStatus === 'CANCELADO';
-
-            // Obtenemos canales únicos
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
 
@@ -4246,45 +4297,29 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-light border mb-3">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <strong>Producto:</strong>
-                                    <span class="text-muted">${sanitizeHTML(order[2])}</span>
-                                </div>
-                                <div class="d-flex justify-content-between">
-                                    <strong>ID:</strong> <span>${sanitizeHTML(order[3])}</span>
-                                    <strong>Cant:</strong> <span>${sanitizeHTML(order[4])}</span>
-                                </div>
+                                <div class="d-flex justify-content-between mb-1"><strong>Producto:</strong><span class="text-muted">${sanitizeHTML(order[2])}</span></div>
+                                <div class="d-flex justify-content-between"><strong>ID:</strong><span>${sanitizeHTML(order[3])}</span><strong>Cant:</strong><span>${sanitizeHTML(order[4])}</span></div>
                             </div>
-
                             <div class="mb-3">
-                                <label for="editOrderChannel" class="form-label fw-bold">Canal de Venta</label>
+                                <label class="form-label fw-bold">Canal de Venta</label>
                                 <input class="form-control" list="channelOptionsList" id="editOrderChannel" value="${sanitizeHTML(order[5])}" ${isCancelled ? 'disabled' : ''}>
-                                <datalist id="channelOptionsList">
-                                    <option value="RETIRO LOCAL">
-                                    <option value="MOSTRADOR">
-                                    ${channelOptions}
-                                </datalist>
+                                <datalist id="channelOptionsList"><option value="RETIRO LOCAL"><option value="MOSTRADOR">${channelOptions}</datalist>
                             </div>
-
                             <div class="mb-3">
-                                <label for="editOrderCustomer" class="form-label fw-bold">Nombre Cliente</label>
+                                <label class="form-label fw-bold">Nombre Cliente</label>
                                 <input type="text" class="form-control" id="editOrderCustomer" value="${sanitizeHTML(order[7])}" ${isCancelled ? 'disabled' : ''}>
                             </div>
-
                             ${isCancelled ? '<div class="alert alert-danger text-center fw-bold">ESTA ORDEN YA ESTÁ CANCELADA</div>' : ''}
                         </div>
                         <div class="modal-footer justify-content-between">
                             ${!isCancelled ? `
-                            <button type="button" class="btn btn-outline-danger" onclick="cancelOrderProcess(${index})">
+                            <button type="button" class="btn btn-outline-danger" data-action="cancel-order" data-order-index="${index}">
                                 <span class="material-icons align-middle me-1">block</span> Anular Orden
                             </button>` : '<div></div>'}
                             
                             <div>
                                 <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
-                                ${!isCancelled ? `
-                                <button type="button" class="btn btn-primary" data-action="save-order-changes" data-order-index="${index}">
-                                    Guardar Cambios
-                                </button>` : ''}
+                                ${!isCancelled ? `<button type="button" class="btn btn-primary" data-action="save-order-changes" data-order-index="${index}">Guardar Cambios</button>` : ''}
                             </div>
                         </div>
                     </div>
@@ -4292,7 +4327,6 @@
             </div>`;
             createAndShowModal('editOrderModal', modalHTML);
         }
-
         async function saveOrderChanges() {
             const btn = document.querySelector('[data-action="save-order-changes"]');
             const index = parseInt(btn.dataset.orderIndex, 10);
@@ -5060,6 +5094,7 @@ async function bulkPickTasks() {
     </button>
 </body>
 </html>
+
 
 
 
