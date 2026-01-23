@@ -3656,10 +3656,71 @@
             
             return html;
         }
-        function handleAction(e) {
+        async function handleAction(e) {
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
+            // --- 2. PEGAR ESTE BLOQUE DE CÓDIGO AQUÍ ---
+            
+            // LÓGICA DE ANULACIÓN DE ORDEN
+            if (action === 'cancel-order') {
+                const index = parseInt(target.dataset.orderIndex);
+                const order = fullData.ordenes[index];
+
+                if (!order) return;
+
+                const currentStatus = (order[6] || '').toUpperCase();
+                const prodId = order[3];
+                const prodName = order[2];
+                const qty = parseInt(order[4]) || 1;
+
+                // Pregunta de seguridad
+                if (!confirm(`⚠️ ¿Seguro que desea ANULAR esta orden?\n\n- Si ya fue preparada: El stock irá a Z00.\n- Si está pendiente: Se eliminará de la lista de picking.`)) {
+                    return;
+                }
+
+                // Cerrar modal si está abierto
+                if (activeModals['editOrderModal']) activeModals['editOrderModal'].hide();
+                
+                showLoading(true, "Procesando anulación...");
+
+                try {
+                    const updates = [];
+                    const timestamp = getTimestamp();
+
+                    // A. Actualizar estado a CANCELADO en la hoja ORDENES
+                    updates.push({
+                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`,
+                        values: [['CANCELADO']]
+                    });
+
+                    // B. Gestionar el Stock Físico
+                    const estadosPickeados = ['PICKED', 'SHIPPED', 'DESPACHADO', 'PREPARADO', 'ENTREGADO'];
+                    
+                    if (estadosPickeados.includes(currentStatus)) {
+                        // Ya salió del estante -> Devolver a Z00
+                        const movementRow = [
+                            prodId, prodName, qty, 'Z00', 'CANCELACION', timestamp
+                        ];
+                        await appendToSheet(CONSTANTS.RANGES.movimientos, [movementRow]);
+                        alert("✅ Orden Anulada.\nEl producto fue enviado a la ubicación Z00.");
+                    } else {
+                        // Aún está en el estante -> Solo cancelar
+                        alert("✅ Orden Anulada.\nSe ha descontado de la lista de tareas.");
+                    }
+
+                    // Aplicar cambios
+                    await batchUpdateSheet(updates);
+                    await loadInitialData();
+
+                } catch (error) {
+                    console.error(error);
+                    alert("Error al anular: " + error.message);
+                } finally {
+                    showLoading(false);
+                }
+                return; // Detener ejecución aquí
+            }
             const data = target.dataset;
             
             const actionMap = {
@@ -4876,3 +4937,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
