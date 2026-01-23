@@ -332,8 +332,54 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
 
     <script type="text/javascript">
-    (function() {
-        'use strict';
+   <script>
+    (function() { // Inicio de la función contenedora
+        "use strict";
+
+        // --- VARIABLES GLOBALES ---
+        // Definimos estas variables aquí arriba para que todo el script las vea
+        let fullData = {}; 
+        let DOM = {};
+        
+        // --- 0. CONEXIÓN CON GOOGLE (PÚBLICA) ---
+        // Estas funciones deben estar disponibles para el HTML (window.)
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+
+        window.gapiLoaded = async () => {
+            console.log("Cargando GAPI...");
+            gapi.load('client', async () => {
+                await gapi.client.init({
+                    apiKey: CONFIG.API_KEY,
+                    discoveryDocs: [CONFIG.DISCOVERY_DOC],
+                });
+                gapiInited = true;
+                maybeEnableAuthButton();
+            });
+        };
+
+        window.gisLoaded = () => {
+            console.log("Cargando GIS...");
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CONFIG.CLIENT_ID,
+                scope: CONFIG.SCOPES,
+                callback: '', // Se define al momento de loguear
+            });
+            gisInited = true;
+            maybeEnableAuthButton();
+        };
+
+        function maybeEnableAuthButton() {
+            if (gapiInited && gisInited) {
+                const authBtn = document.getElementById('authorize_button');
+                if(authBtn) {
+                    authBtn.style.display = 'block';
+                    authBtn.onclick = handleAuthClick;
+                    console.log("Botón de Google habilitado");
+                }
+            }
+        }
         
         // --- 1. CONFIGURACIÓN Y CONSTANTES ---
         const CONFIG = {
@@ -1542,7 +1588,7 @@
             document.body.addEventListener('click', handleAction);
             document.body.addEventListener('input', handleInput);
             document.body.addEventListener('change', handleChange);
-            DOM.navContainer.addEventListener('click', (e) => {
+            DOM.navContainer.addEventListener('click', async (e) => {
                 const navLink = e.target.closest('.nav-link');
                 if (navLink) {
                     e.preventDefault();
@@ -5094,6 +5140,7 @@ async function bulkPickTasks() {
     </button>
 </body>
 </html>
+
 
 
 
