@@ -173,7 +173,101 @@
             font-size: 1.75rem;
             font-weight: 700;
         }
+    /* --- ESTILOS VISTA MÓVIL GLOBAL --- */
+        body.mobile-app-mode {
+            font-size: 18px !important; /* Letra más grande */
+            overflow-x: hidden;
+        }
 
+        /* Ajuste de Contenedores */
+        body.mobile-app-mode .container, 
+        body.mobile-app-mode .container-fluid {
+            padding-left: 10px;
+            padding-right: 10px;
+            max-width: 100vw;
+        }
+
+        /* Botones Táctiles (Gordos y Anchos) */
+        body.mobile-app-mode .btn {
+            display: block;
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 12px;
+            font-size: 1.1rem;
+            border-radius: 12px;
+        }
+        body.mobile-app-mode .btn-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        body.mobile-app-mode .btn-group .btn {
+            width: 100%;
+            border-radius: 8px !important;
+            margin-bottom: 5px;
+        }
+
+        /* Tablas Responsivas (Scroll Horizontal) */
+        body.mobile-app-mode .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        body.mobile-app-mode table {
+            min-width: 600px; /* Fuerza el scroll si es muy angosta */
+            font-size: 1rem;
+        }
+        body.mobile-app-mode th, body.mobile-app-mode td {
+            padding: 12px 8px; /* Más espacio para no tocar mal */
+            vertical-align: middle;
+        }
+
+        /* Inputs y Formularios grandes */
+        body.mobile-app-mode input, 
+        body.mobile-app-mode select, 
+        body.mobile-app-mode textarea {
+            font-size: 1.1rem !important;
+            padding: 12px !important;
+            height: auto;
+        }
+
+        /* Ajuste del Navbar y Sidebar */
+        body.mobile-app-mode .navbar {
+            padding: 15px;
+        }
+        body.mobile-app-mode .navbar-brand {
+            font-size: 1.5rem;
+        }
+
+        /* Ocultar elementos no esenciales en móvil si es necesario */
+        body.mobile-app-mode .hide-on-mobile {
+            display: none !important;
+        }
+
+        /* BOTÓN FLOTANTE (FAB) PARA ACTIVAR/DESACTIVAR */
+        #mobile-toggle-fab {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #212529;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        #mobile-toggle-fab:active {
+            transform: scale(0.9);
+        }
+        #mobile-toggle-fab.active {
+            background-color: #0d6efd; /* Azul cuando está activo */
+            border: 2px solid white;
+        }
     </style>
 </head>
 <body>
@@ -1423,7 +1517,47 @@
                 .slice(0, 5)
                 .map(item => item.product);
         }
+        // --- GESTIÓN DE VISTA MÓVIL GLOBAL ---
 
+        function toggleMobileAppMode() {
+            const body = document.body;
+            const btn = document.getElementById('mobile-toggle-fab');
+            const icon = document.getElementById('mobile-icon');
+            
+            // Alternar clase
+            body.classList.toggle('mobile-app-mode');
+            
+            const isMobile = body.classList.contains('mobile-app-mode');
+            
+            // Actualizar visuales
+            if (isMobile) {
+                btn.classList.add('active');
+                icon.textContent = 'desktop_windows'; // Icono para volver a PC
+                btn.title = "Volver a Vista Escritorio";
+                // Guardar preferencia
+                localStorage.setItem('wms_view_mode', 'mobile');
+                
+                // Ajuste automático: Colapsar menú si está abierto
+                const navToggler = document.querySelector('.navbar-toggler');
+                const navCollapse = document.querySelector('.navbar-collapse');
+                if (navCollapse && navCollapse.classList.contains('show')) {
+                    navToggler.click();
+                }
+            } else {
+                btn.classList.remove('active');
+                icon.textContent = 'smartphone'; // Icono para ir a Móvil
+                btn.title = "Activar Vista Móvil";
+                localStorage.setItem('wms_view_mode', 'desktop');
+            }
+        }
+
+        // Cargar preferencia al iniciar
+        function loadViewPreference() {
+            const pref = localStorage.getItem('wms_view_mode');
+            if (pref === 'mobile') {
+                toggleMobileAppMode(); // Activar si estaba guardado
+            }
+        }
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -4865,6 +4999,7 @@ async function bulkPickTasks() {
             domReady = true;
             initializeEventListeners();
             maybeEnableAuthButton();
+            loadViewPreference();
         });
 
     })();
@@ -4874,5 +5009,9 @@ async function bulkPickTasks() {
     
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <button id="mobile-toggle-fab" onclick="toggleMobileAppMode()" title="Cambiar a Vista Móvil">
+        <span class="material-icons" id="mobile-icon">smartphone</span>
+    </button>
 </body>
 </html>
+
