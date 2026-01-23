@@ -173,77 +173,7 @@
             font-size: 1.75rem;
             font-weight: 700;
         }
-    /* --- ESTILOS VISTA MÓVIL GLOBAL --- */
-        body.mobile-app-mode {
-            font-size: 18px !important;
-            overflow-x: hidden;
-        }
-        
-        /* Forzar ancho completo y padding seguro */
-        body.mobile-app-mode .container, 
-        body.mobile-app-mode .container-fluid {
-            padding-left: 12px !important;
-            padding-right: 12px !important;
-            max-width: 100vw !important;
-        }
 
-        /* Botones Grandes y Bloques */
-        body.mobile-app-mode .btn {
-            display: block;
-            width: 100%;
-            margin-bottom: 10px;
-            padding: 15px !important; /* Más gordo */
-            font-size: 1.2rem !important;
-            border-radius: 12px !important;
-        }
-        
-        /* Ajustar grupos de botones para que sean verticales */
-        body.mobile-app-mode .btn-group {
-            display: flex !important;
-            flex-direction: column !important;
-            width: 100% !important;
-        }
-        body.mobile-app-mode .btn-group .btn {
-            width: 100% !important;
-            border-radius: 10px !important;
-            margin-bottom: 5px !important;
-            flex: none !important; /* Evitar que se encojan */
-        }
-
-        /* Tablas con Scroll */
-        body.mobile-app-mode .table-responsive {
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch;
-            margin-bottom: 20px;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-        }
-        body.mobile-app-mode table {
-            min-width: 700px !important; /* Forzar scroll */
-            font-size: 1rem !important;
-        }
-        
-        /* Inputs Grandes */
-        body.mobile-app-mode input, 
-        body.mobile-app-mode select, 
-        body.mobile-app-mode textarea {
-            font-size: 1.2rem !important;
-            padding: 12px !important;
-            min-height: 50px;
-        }
-
-        /* BOTÓN FLOTANTE (FAB) */
-        #mobile-toggle-fab {
-            position: fixed; bottom: 25px; right: 25px;
-            width: 65px; height: 65px; border-radius: 50%;
-            background-color: #212529; color: white; border: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 99999;
-            display: flex; align-items: center; justify-content: center;
-            transition: transform 0.2s, background-color 0.3s;
-        }
-        #mobile-toggle-fab:active { transform: scale(0.9); }
-        #mobile-toggle-fab.active { background-color: #0d6efd; border: 3px solid white; }
-        #mobile-toggle-fab .material-icons { font-size: 30px; }
     </style>
 </head>
 <body>
@@ -332,54 +262,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
 
     <script type="text/javascript">
-   <script>
-    (function() { // Inicio de la función contenedora
-        "use strict";
-
-        // --- VARIABLES GLOBALES ---
-        // Definimos estas variables aquí arriba para que todo el script las vea
-        let fullData = {}; 
-        let DOM = {};
-        
-        // --- 0. CONEXIÓN CON GOOGLE (PÚBLICA) ---
-        // Estas funciones deben estar disponibles para el HTML (window.)
-        let tokenClient;
-        let gapiInited = false;
-        let gisInited = false;
-
-        window.gapiLoaded = async () => {
-            console.log("Cargando GAPI...");
-            gapi.load('client', async () => {
-                await gapi.client.init({
-                    apiKey: CONFIG.API_KEY,
-                    discoveryDocs: [CONFIG.DISCOVERY_DOC],
-                });
-                gapiInited = true;
-                maybeEnableAuthButton();
-            });
-        };
-
-        window.gisLoaded = () => {
-            console.log("Cargando GIS...");
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CONFIG.CLIENT_ID,
-                scope: CONFIG.SCOPES,
-                callback: '', // Se define al momento de loguear
-            });
-            gisInited = true;
-            maybeEnableAuthButton();
-        };
-
-        function maybeEnableAuthButton() {
-            if (gapiInited && gisInited) {
-                const authBtn = document.getElementById('authorize_button');
-                if(authBtn) {
-                    authBtn.style.display = 'block';
-                    authBtn.onclick = handleAuthClick;
-                    console.log("Botón de Google habilitado");
-                }
-            }
-        }
+    (function() {
+        'use strict';
         
         // --- 1. CONFIGURACIÓN Y CONSTANTES ---
         const CONFIG = {
@@ -1539,47 +1423,7 @@
                 .slice(0, 5)
                 .map(item => item.product);
         }
-       // --- GESTIÓN DE VISTA MÓVIL GLOBAL (CORREGIDO) ---
 
-        // IMPORTANTE: Usamos 'window.' para que el botón HTML pueda encontrar la función
-        window.toggleMobileAppMode = function() {
-            const body = document.body;
-            const btn = document.getElementById('mobile-toggle-fab');
-            const icon = document.getElementById('mobile-icon');
-            
-            // Alternar clase
-            body.classList.toggle('mobile-app-mode');
-            
-            const isMobile = body.classList.contains('mobile-app-mode');
-            
-            // Actualizar visuales
-            if (isMobile) {
-                btn.classList.add('active');
-                if(icon) icon.textContent = 'desktop_windows'; 
-                btn.title = "Volver a Vista Escritorio";
-                localStorage.setItem('wms_view_mode', 'mobile');
-                
-                // Colapsar menú si está abierto
-                const navToggler = document.querySelector('.navbar-toggler');
-                const navCollapse = document.querySelector('.navbar-collapse');
-                if (navCollapse && navCollapse.classList.contains('show') && navToggler) {
-                    navToggler.click();
-                }
-            } else {
-                btn.classList.remove('active');
-                if(icon) icon.textContent = 'smartphone';
-                btn.title = "Activar Vista Móvil";
-                localStorage.setItem('wms_view_mode', 'desktop');
-            }
-        };
-
-        // Cargar preferencia al iniciar
-        window.loadViewPreference = function() {
-            const pref = localStorage.getItem('wms_view_mode');
-            if (pref === 'mobile') {
-                window.toggleMobileAppMode(); 
-            }
-        };
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -1588,7 +1432,7 @@
             document.body.addEventListener('click', handleAction);
             document.body.addEventListener('input', handleInput);
             document.body.addEventListener('change', handleChange);
-            DOM.navContainer.addEventListener('click', async (e) => {
+            DOM.navContainer.addEventListener('click', (e) => {
                 const navLink = e.target.closest('.nav-link');
                 if (navLink) {
                     e.preventDefault();
@@ -3887,60 +3731,6 @@
             if (inputMap[target.id]) inputMap[target.id]();
             
             const action = target.dataset.action;
-            
-            // --- INICIO BLOQUE DE ANULACIÓN ---
-            if (action === 'cancel-order') {
-                const index = parseInt(target.dataset.orderIndex);
-                const order = fullData.ordenes[index];
-                
-                // Validación de seguridad
-                if (!order) return;
-
-                const currentStatus = (order[6] || '').toUpperCase(); 
-                const prodId = order[3];
-                const prodName = order[2];
-                const qty = parseInt(order[4]) || 1;
-
-                if (!confirm(`⚠️ ¿Está seguro de ANULAR esta orden?\n\nSi la orden ya fue preparada, el stock regresará a la ubicación Z00.`)) return;
-
-                // Ocultar modal si existe
-                if (activeModals['editOrderModal']) activeModals['editOrderModal'].hide();
-                
-                showLoading(true, "Anulando orden...");
-
-                try {
-                    const updates = [];
-                    const timestamp = getTimestamp();
-
-                    // 1. Marcar como CANCELADO en hoja Ordenes (Columna G es la 6, +2 por cabecera y base 0)
-                    updates.push({
-                        range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`,
-                        values: [['CANCELADO']]
-                    });
-
-                    // 2. Devolver stock a Z00 (Solo si ya estaba preparada/despachada)
-                    // Estados que implican que la mercadería ya salió del stock:
-                    const estadosSalida = ['PICKED', 'SHIPPED', 'DESPACHADO', 'PREPARADO', 'ENTREGADO'];
-                    
-                    if (estadosSalida.includes(currentStatus)) {
-                        const movementRow = [prodId, prodName, qty, 'Z00', 'CANCELACION', timestamp];
-                        await appendToSheet(CONSTANTS.RANGES.movimientos, [movementRow]);
-                        alert(`Orden Anulada.\nEl stock ha vuelto a Z00 para ser reubicado.`);
-                    } else {
-                        alert("Orden Anulada correctamente.\n(No se generaron movimientos de stock porque la orden estaba Pendiente).");
-                    }
-
-                    await batchUpdateSheet(updates);
-                    await loadInitialData();
-                } catch (error) {
-                    console.error(error);
-                    alert("Error al anular: " + error.message);
-                } finally {
-                    showLoading(false);
-                }
-                return; // Detener ejecución aquí
-            }
-            // --- FIN BLOQUE DE ANULACIÓN ---
             if (action === 'search-products-for-movement') {
                 searchProductsForMovement(target, 'select-product-for-movement');
             } else if (action === 'search-products-for-control') {
@@ -4327,52 +4117,64 @@
         function showEditOrderModal(index) {
             const order = fullData.ordenes[index];
             if (!order) return alert('Error: No se pudo cargar la orden.');
-            
-            const currentStatus = (order[6] || '').toUpperCase();
-            const isCancelled = currentStatus === 'CANCELADO';
+
+            // Obtenemos canales únicos existentes para sugerirlos
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
 
             const modalHTML = `
             <div class="modal fade" id="editOrderModal" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 shadow">
+                    <div class="modal-content">
                         <div class="modal-header bg-primary text-white">
-                            <h5 class="modal-title">Editar Orden #${index + 1}</h5>
+                            <h5 class="modal-title">Editar Orden</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="alert alert-light border mb-3">
-                                <div class="d-flex justify-content-between mb-1"><strong>Producto:</strong><span class="text-muted">${sanitizeHTML(order[2])}</span></div>
-                                <div class="d-flex justify-content-between"><strong>ID:</strong><span>${sanitizeHTML(order[3])}</span><strong>Cant:</strong><span>${sanitizeHTML(order[4])}</span></div>
-                            </div>
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Canal de Venta</label>
-                                <input class="form-control" list="channelOptionsList" id="editOrderChannel" value="${sanitizeHTML(order[5])}" ${isCancelled ? 'disabled' : ''}>
-                                <datalist id="channelOptionsList"><option value="RETIRO LOCAL"><option value="MOSTRADOR">${channelOptions}</datalist>
+                                <label class="form-label text-muted">Producto</label>
+                                <input type="text" class="form-control" value="${sanitizeHTML(order[2])}" disabled readonly>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Nombre Cliente</label>
-                                <input type="text" class="form-control" id="editOrderCustomer" value="${sanitizeHTML(order[7])}" ${isCancelled ? 'disabled' : ''}>
-                            </div>
-                            ${isCancelled ? '<div class="alert alert-danger text-center fw-bold">ESTA ORDEN YA ESTÁ CANCELADA</div>' : ''}
-                        </div>
-                        <div class="modal-footer justify-content-between">
-                            ${!isCancelled ? `
-                            <button type="button" class="btn btn-outline-danger" data-action="cancel-order" data-order-index="${index}">
-                                <span class="material-icons align-middle me-1">block</span> Anular Orden
-                            </button>` : '<div></div>'}
                             
-                            <div>
-                                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cerrar</button>
-                                ${!isCancelled ? `<button type="button" class="btn btn-primary" data-action="save-order-changes" data-order-index="${index}">Guardar Cambios</button>` : ''}
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">ID Venta</label>
+                                    <input type="text" class="form-control" value="${sanitizeHTML(order[1])}" disabled readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted">Cantidad</label>
+                                    <input type="text" class="form-control" value="${sanitizeHTML(order[4])}" disabled readonly>
+                                </div>
                             </div>
+
+                            <hr>
+
+                            <div class="mb-3">
+                                <label for="editOrderChannel" class="form-label fw-bold">Canal de Venta</label>
+                                <input class="form-control" list="channelOptionsList" id="editOrderChannel" value="${sanitizeHTML(order[5])}">
+                                <datalist id="channelOptionsList">
+                                    <option value="RETIRO LOCAL">
+                                    <option value="MOSTRADOR">
+                                    ${channelOptions}
+                                </datalist>
+                                <div class="form-text">Modifique esto si el cliente decide retirar personalmente.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="editOrderCustomer" class="form-label fw-bold">Nombre Cliente</label>
+                                <input type="text" class="form-control" id="editOrderCustomer" value="${sanitizeHTML(order[7])}">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" data-action="save-order-changes" data-order-index="${index}">Guardar Cambios</button>
                         </div>
                     </div>
                 </div>
             </div>`;
             createAndShowModal('editOrderModal', modalHTML);
         }
+
         async function saveOrderChanges() {
             const btn = document.querySelector('[data-action="save-order-changes"]');
             const index = parseInt(btn.dataset.orderIndex, 10);
@@ -4384,7 +4186,7 @@
 
             activeModals['editOrderModal']?.hide();
             showLoading(true, 'Actualizando orden...');
-            
+
             try {
                 // Actualizamos Canal (Columna F -> índice 5) y Cliente (Columna H -> índice 7)
                 // Usamos batchUpdate para hacer dos cambios en una sola llamada de red si es posible, 
@@ -4404,65 +4206,6 @@
             } finally {
                 showLoading(false);
             }
-            window.cancelOrderProcess = async (index) => {
-            const order = fullData.ordenes[index];
-            const currentStatus = (order[6] || '').toUpperCase(); // Columna G
-            const prodId = order[3];
-            const prodName = order[2];
-            const qty = parseInt(order[4]) || 1;
-
-            if (!confirm(`⚠️ ¿Está seguro de ANULAR esta orden?\n\nSi la orden ya fue preparada, el stock regresará a la ubicación de entrada (Z00) para ser reubicado.`)) {
-                return;
-            }
-
-            activeModals['editOrderModal']?.hide();
-            showLoading(true, "Anulando orden y revirtiendo stock...");
-
-            try {
-                const updates = [];
-                const timestamp = getTimestamp();
-
-                // 1. Cambiar estado de la Orden a "CANCELADO"
-                // La columna Estado es la G (índice 6). Fila = index + 2
-                updates.push({
-                    range: `${CONSTANTS.SHEET_NAMES.ORDERS}!G${index + 2}`,
-                    values: [['CANCELADO']]
-                });
-
-                // 2. Logística Inversa (Solo si ya se había descontado stock)
-                // Si estaba en PICKED (Preparado) o SHIPPED (Despachado), el stock ya "salió".
-                // Hay que devolverlo a Z00.
-                if (currentStatus === CONSTANTS.STATUS.PICKED || currentStatus === CONSTANTS.STATUS.SHIPPED) {
-                    
-                    // Creamos un movimiento de INGRESO (Reversión) a Z00
-                    const movementRow = [
-                        prodId, 
-                        prodName, 
-                        qty,      // Cantidad positiva (vuelve a entrar)
-                        'Z00',    // Ubicación de retorno (Zona de espera)
-                        'CANCELACION', // Motivo claro
-                        timestamp
-                    ];
-
-                    await appendToSheet(CONSTANTS.RANGES.movimientos, [movementRow]);
-                    alert(`Orden Anulada.\n\nEl stock ha sido devuelto a la ubicación Z00.\nPor favor, reubique la mercadería físicamente.`);
-                } else {
-                    // Si estaba PENDIENTE, no hacemos movimiento de stock porque nunca salió.
-                    alert("Orden Anulada.\nNo se generaron movimientos de stock porque la orden no había sido preparada.");
-                }
-
-                // 3. Ejecutar cambios en Ordenes
-                await batchUpdateSheet(updates);
-                
-                // Recargar
-                await loadInitialData();
-
-            } catch (error) {
-                handleApiError(error);
-            } finally {
-                showLoading(false);
-            }
-        };
         }
       function downloadTasksPDF() {
             const { jsPDF } = window.jspdf;
@@ -5122,7 +4865,6 @@ async function bulkPickTasks() {
             domReady = true;
             initializeEventListeners();
             maybeEnableAuthButton();
-            window.loadViewPreference();
         });
 
     })();
@@ -5132,16 +4874,5 @@ async function bulkPickTasks() {
     
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    <button id="mobile-toggle-fab" onclick="toggleMobileAppMode()" title="Cambiar a Vista Móvil">
-        <span class="material-icons" id="mobile-icon">smartphone</span>
-    </button>
-    <button id="mobile-toggle-fab" onclick="window.toggleMobileAppMode()" title="Cambiar a Vista Móvil">
-        <span class="material-icons" id="mobile-icon">smartphone</span>
-    </button>
 </body>
 </html>
-
-
-
-
-
