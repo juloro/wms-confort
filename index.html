@@ -390,105 +390,118 @@
         // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
 
         async function loadInitialData() {
-            showLoading(true, 'Sincronizando sistema (Alto Volumen)...');
+            showLoading(true, 'Cargando Sistema (10k Productos)...');
+            console.clear();
             console.time("Velocidad de Carga");
 
             try {
-                // 1. PREPARAR RANGOS DE FORMA SEGURA
-                // Obtenemos solo los rangos que SI están definidos (evita el error 'undefined')
-                const activeRanges = Object.values(CONSTANTS.RANGES).filter(r => r !== undefined && r !== null);
-                
-                // 2. DESCARGA MASIVA
+                // 1. DEFINICIÓN MANUAL DE RANGOS (Con tus nombres exactos)
+                // El orden aquí es CRÍTICO para la asignación posterior
+                const sheetRequests = [
+                    'PRODUCTOS!A2:C',         // [0] Lee ID, Nombre, etc. hasta el infinito
+                    'MOVIMIENTOS!A2:F',       // [1]
+                    'UBICACIONES!A2:C',       // [2]
+                    'ORDENES!A2:H',           // [3]
+                    'CONTROLES!A2:F',         // [4]
+                    'ENTRADAS_SALIDAS!A2:H'   // [5] (Asumo que esta es tu tabla de historial/remitos)
+                ];
+
+                console.log("📡 Solicitando datos a Google Sheets...");
+
+                // 2. PETICIÓN A GOOGLE
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
-                    ranges: activeRanges 
+                    ranges: sheetRequests 
                 });
-                
+
                 const valueRanges = response.result.valueRanges;
-                
-                // 3. ASIGNACIÓN INTELIGENTE
-                // Asignamos los datos recibidos a las variables correctas
-                const rangeKeys = Object.keys(CONSTANTS.RANGES);
-                let responseIndex = 0;
 
-                rangeKeys.forEach((key) => {
-                    // Solo asignamos si el rango existía en la petición
-                    if (CONSTANTS.RANGES[key]) {
-                        fullData[key] = valueRanges[responseIndex]?.values || [];
-                        responseIndex++;
-                    } else {
-                        fullData[key] = []; // Si no existe, array vacío para no romper nada
-                    }
-                });
+                // 3. ASIGNACIÓN DE DATOS (Manual y Segura)
+                // Asignamos según el orden de la lista 'sheetRequests'
+                fullData.productos        = valueRanges[0].values || [];
+                fullData.movimientos      = valueRanges[1].values || [];
+                fullData.ubicaciones      = valueRanges[2].values || [];
+                fullData.ordenes          = valueRanges[3].values || [];
+                fullData.controles        = valueRanges[4].values || [];
+                fullData.entradas_salidas = valueRanges[5].values || []; 
 
-                // --- REPORTE DE CARGA ---
-                const totalProds = fullData.productos ? fullData.productos.length : 0;
-                console.log(`📊 ESTADO DE BASE DE DATOS:`);
-                console.log(`- Productos cargados: ${totalProds}`);
-                
-                // 4. INDEXADO Y NORMALIZACIÓN (El secreto para los 10k productos)
+                // Inicializamos arrays vacíos para estructuras viejas si el código las pide, para evitar crashes
+                fullData.tareas = []; 
+                fullData.remitos = fullData.entradas_salidas; // Mapeo opcional por si usas 'remitos' en el código
+
+                // --- REPORTE DE CARGA EN CONSOLA ---
+                console.log(`📦 VOLUMEN CARGADO:`);
+                const totalProd = fullData.productos.length;
+                console.log(`- Productos: ${totalProd} filas`);
+                console.log(`- Ordenes: ${fullData.ordenes.length} filas`);
+
+                // 4. INDEXADO MASIVO DE PRODUCTOS (Para tus 10.000 Items)
                 const namesMap = new Map();
                 
-                if (fullData.productos) {
-                    for (let i = 0; i < fullData.productos.length; i++) {
-                        const row = fullData.productos[i];
-                        // row[0]=ID, row[1]=Nombre.
-                        if (row[0]) {
-                            // Limpieza total: String, Mayúsculas, Sin espacios a los lados
-                            const idKey = String(row[0]).trim().toUpperCase();
-                            // Guardamos si no es cabecera
-                            if (idKey !== 'ID' && idKey !== 'CODIGO') {
-                                namesMap.set(idKey, row[1]); 
-                            }
+                // Usamos un bucle 'for' optimizado para velocidad
+                for (let i = 0; i < totalProd; i++) {
+                    const row = fullData.productos[i];
+                    // Aseguramos que la fila tenga datos
+                    if (row && row[0]) {
+                        // Limpieza: Texto, sin espacios, mayúsculas
+                        const idKey = String(row[0]).trim().toUpperCase();
+                        // Guardamos Nombre (Columna B / indice 1)
+                        if (idKey !== 'ID' && idKey !== 'CODIGO' && row[1]) {
+                            namesMap.set(idKey, row[1]);
                         }
                     }
                 }
-                console.log(`- Índice de búsqueda: ${namesMap.size} productos únicos.`);
+                console.log(`📚 DICCIONARIO CREADO: ${namesMap.size} productos únicos.`);
 
-                // 5. CORRECCIÓN DE ÓRDENES
+                // 5. CORRECCIÓN DE NOMBRES EN ÓRDENES
                 let cambios = 0;
-                if (fullData.ordenes) {
-                    for (let i = 0; i < fullData.ordenes.length; i++) {
-                        const order = fullData.ordenes[i];
-                        const rawId = order[3]; // Columna ID
+                const totalOrd = fullData.ordenes.length;
+                
+                for (let i = 0; i < totalOrd; i++) {
+                    const order = fullData.ordenes[i];
+                    const rawId = order[3]; // Columna ID de producto en Ordenes
+                    
+                    if (rawId) {
+                        const idOrden = String(rawId).trim().toUpperCase();
                         
-                        if (rawId) {
-                            const idOrden = String(rawId).trim().toUpperCase();
+                        // Si existe en nuestro diccionario de productos
+                        if (namesMap.has(idOrden)) {
+                            const nombreOficial = namesMap.get(idOrden);
                             
-                            // Búsqueda instantánea
-                            if (namesMap.has(idOrden)) {
-                                const nombreOficial = namesMap.get(idOrden);
-                                // Si el nombre es distinto, lo corregimos
-                                if (order[2] !== nombreOficial) {
-                                    order[2] = nombreOficial;
-                                    cambios++;
-                                }
+                            // Si el nombre en la orden es diferente al oficial, lo corregimos
+                            if (order[2] !== nombreOficial) {
+                                order[2] = nombreOficial;
+                                cambios++;
                             }
                         }
                     }
                 }
-                console.log(`✅ NOMBRES CORREGIDOS: ${cambios}`);
+                console.log(`✅ NOMBRES CORREGIDOS EN ÓRDENES: ${cambios}`);
                 console.timeEnd("Velocidad de Carga");
 
-                // 6. LIMPIEZA FINAL Y PROCESAMIENTO
-                // Filtramos filas vacías para evitar errores de cálculo
+                // 6. LIMPIEZA FINAL (Quitar filas totalmente vacías)
                 if (fullData.productos) fullData.productos = fullData.productos.filter(r => r[0]);
                 if (fullData.movimientos) fullData.movimientos = fullData.movimientos.filter(r => r[0]);
                 if (fullData.ordenes) fullData.ordenes = fullData.ordenes.filter(r => r[0]);
 
-                // Copia para seguridad
+                // Guardamos copia de seguridad para filtros
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
-                
-                // Cálculos del sistema
+
+                // 7. CÁLCULOS DEL SISTEMA
                 processAndCalculateStock();
-                processRemitos();
+                
+                // Si tienes una función para procesar 'entradas_salidas' o 'remitos', va aquí:
+                if (typeof processRemitos === 'function') processRemitos();
+                
                 processControlDates();
                 sortProducts('id', true); 
                 
                 renderAllViews();
 
             } catch (err) {
-                console.error("Error crítico de conexión:", err);
+                console.error("🔥 ERROR CRÍTICO:", err);
+                const msg = err.result ? err.result.error.message : err.message;
+                alert("Error al cargar datos: " + msg);
                 handleApiError(err);
             } finally {
                 showLoading(false);
@@ -4932,6 +4945,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
