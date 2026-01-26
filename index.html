@@ -390,65 +390,68 @@
         // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
 
         async function loadInitialData() {
-            showLoading(true, 'Actualizando datos...');
+            showLoading(true, 'Sincronizando sistema...');
             try {
-                // 1. Descarga de datos desde Google Sheets
+                // 1. Descargar TODO desde Google
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
                     ranges: Object.values(CONSTANTS.RANGES) 
                 });
                 const valueRanges = response.result.valueRanges;
                 
-                // 2. Asignación de datos a variables globales
+                // 2. Asignar a memoria
                 Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
                     fullData[name] = valueRanges[index]?.values || [];
                 });
-                
-                // 3. Filtros de limpieza (Eliminar filas vacías)
-                if (fullData.controles) fullData.controles = fullData.controles.filter(row => row[0] && row[3]);
-                if (fullData.movimientos) fullData.movimientos = fullData.movimientos.filter(row => row[0]);
 
-                // --- NORMALIZACIÓN DE NOMBRES (CORRECCIÓN ROBUSTA) ---
+                // --- DIAGNÓSTICO EN CONSOLA (Presiona F12 para ver) ---
+                console.log(`📊 REPORTE DE CARGA:`);
+                console.log(`- Filas en Hoja PRODUCTOS: ${fullData.productos ? fullData.productos.length : 0}`);
+                console.log(`- Filas en Hoja ORDENES: ${fullData.ordenes ? fullData.ordenes.length : 0}`);
+
+                // 3. Limpieza de Datos (Filtramos filas vacías reales pero mantenemos las válidas)
+                // Esto asegura que si hay un hueco en la fila 50, pero datos en la 51, la 51 se cargue.
+                if (fullData.productos) {
+                    fullData.productos = fullData.productos.filter(row => row[0] && String(row[0]).trim() !== "");
+                }
                 
-                // A. Crear Diccionario de Productos: { "ID_LIMPIO" : "NOMBRE_OFICIAL" }
+                // --- NORMALIZACIÓN DE NOMBRES DE ÓRDENES ---
+                // (Tu requerimiento principal)
+                
+                // A. Crear Mapa Maestro de Productos
                 const namesMap = new Map();
+                let productosCargados = 0;
+
                 (fullData.productos || []).forEach(p => {
-                    // ID está en p[0], Nombre en p[1]
-                    if (p[0]) {
-                        // Convertimos a Texto, quitamos espacios y pasamos a mayúsculas para asegurar coincidencia
-                        const idLimpio = String(p[0]).trim().toUpperCase();
-                        namesMap.set(idLimpio, p[1]);
+                    // Limpieza extrema del ID: Quitar espacios y mayúsculas
+                    const idLimpio = String(p[0]).trim().toUpperCase();
+                    if (idLimpio && idLimpio !== 'ID' && idLimpio !== 'CODIGO') {
+                        namesMap.set(idLimpio, p[1]); // ID -> Nombre Oficial
+                        productosCargados++;
                     }
                 });
+                console.log(`- Productos Indexados correctamente: ${productosCargados}`);
 
                 // B. Corregir Órdenes
-                let corregidos = 0;
-                let sinCoincidencia = 0;
-
+                let nombresCorregidos = 0;
                 (fullData.ordenes || []).forEach(order => {
-                    // IDProducto en Órdenes es la Columna 3 (índice 3)
-                    const rawId = order[3];
-                    
+                    const rawId = order[3]; // Columna ID en Ordenes
                     if (rawId) {
                         const idOrden = String(rawId).trim().toUpperCase();
-                        
                         if (namesMap.has(idOrden)) {
-                            // SI COINCIDE: Reemplazamos el nombre (Columna 2, índice 2)
-                            order[2] = namesMap.get(idOrden);
-                            corregidos++;
-                        } else {
-                            // NO COINCIDE: Mantenemos el original
-                            sinCoincidencia++;
-                            // Descomenta la siguiente línea si quieres ver en la consola cuáles fallan:
-                            // console.warn(`No se encontró el producto ID: "${idOrden}" en la lista de Productos.`);
+                            const nombreOficial = namesMap.get(idOrden);
+                            // Si el nombre es diferente, lo actualizamos
+                            if (order[2] !== nombreOficial) {
+                                order[2] = nombreOficial;
+                                nombresCorregidos++;
+                            }
                         }
                     }
                 });
-                
-                console.log(`Normalización: ${corregidos} nombres corregidos. ${sinCoincidencia} IDs no encontrados en la base de productos.`);
+                console.log(`✅ Se corrigieron ${nombresCorregidos} nombres en las órdenes automáticamente.`);
                 // -----------------------------------------------------
 
-                // 4. Procesamiento final del sistema
+                // 4. Procesar el resto del sistema
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
                 
                 processAndCalculateStock();
@@ -459,6 +462,7 @@
                 renderAllViews();
 
             } catch (err) {
+                console.error("Error crítico:", err);
                 handleApiError(err);
             } finally {
                 showLoading(false);
@@ -4902,5 +4906,6 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
