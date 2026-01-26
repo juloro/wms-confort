@@ -392,45 +392,61 @@
         async function loadInitialData() {
             showLoading(true, 'Actualizando datos...');
             try {
-                // 1. Descarga de datos (Método batchGet correcto)
+                // 1. Descarga de datos
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
                     ranges: Object.values(CONSTANTS.RANGES) 
                 });
                 const valueRanges = response.result.valueRanges;
                 
-                // 2. Asignación de datos a variables
+                // 2. Asignación de datos
                 Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
                     fullData[name] = valueRanges[index]?.values || [];
                 });
                 
-                // --- 3. FILTROS DE LIMPIEZA (Corrección del problema de filas vacías) ---
-                
-                // Filtro para CONTROLES: Elimina filas que no tengan ID de Control (col 0) ni ID Producto (col 3)
+                // 3. Filtros de limpieza (Filas vacías)
                 if (fullData.controles) {
-                    fullData.controles = fullData.controles.filter(row => 
-                        row[0] && row[0].toString().trim() !== '' && 
-                        row[3] && row[3].toString().trim() !== ''
-                    );
+                    fullData.controles = fullData.controles.filter(row => row[0] && row[3]);
+                }
+                if (fullData.movimientos) {
+                    fullData.movimientos = fullData.movimientos.filter(row => row[0]);
                 }
 
-                // Filtro para MOVIMIENTOS: Elimina filas sin ID de producto
-                if (fullData.movimientos) {
-                    fullData.movimientos = fullData.movimientos.filter(row => 
-                        row[0] && row[0].toString().trim() !== ''
-                    );
-                }
+                // --- NUEVO: NORMALIZACIÓN DE NOMBRES DE PRODUCTOS ---
+                // Objetivo: Que las órdenes tengan el nombre "Oficial" de la tabla Productos
                 
-                // 4. Copia de seguridad y Procesamiento
+                // A. Creamos un mapa rápido (Diccionario): ID -> Nombre Real
+                const namesMap = new Map();
+                if (fullData.productos) {
+                    fullData.productos.forEach(p => {
+                        // p[0] es ID, p[1] es Nombre
+                        if (p[0]) namesMap.set(String(p[0]).trim().toUpperCase(), p[1]);
+                    });
+                }
+
+                // B. Corregimos las Órdenes en Memoria
+                if (fullData.ordenes) {
+                    fullData.ordenes.forEach(order => {
+                        // La estructura de orden es: [Fecha, IDVenta, NOMBRE(2), IDPROD(3), ...]
+                        const idProd = String(order[3] || '').trim().toUpperCase();
+                        
+                        // Si existe el ID en nuestra base de productos, REEMPLAZAMOS el nombre
+                        if (namesMap.has(idProd)) {
+                            order[2] = namesMap.get(idProd); 
+                        }
+                    });
+                }
+                // ----------------------------------------------------
+                
+                // 4. Procesamiento habitual
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
                 
-                // --- ESTAS SON LAS LÍNEAS QUE FALTABAN Y HACÍAN QUE NO CARGARA NADA ---
                 processAndCalculateStock();
                 processRemitos();
                 processControlDates();
                 sortProducts('id', true); 
+                
                 renderAllViews();
-                // ----------------------------------------------------------------------
 
             } catch (err) {
                 handleApiError(err);
@@ -4876,3 +4892,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
