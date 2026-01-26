@@ -390,118 +390,77 @@
         // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
 
         async function loadInitialData() {
-            showLoading(true, 'Cargando Sistema (10k Productos)...');
-            console.clear();
-            console.time("Velocidad de Carga");
-
+            showLoading(true, 'Sincronizando 10k Productos...');
             try {
-                // 1. DEFINICIÓN MANUAL DE RANGOS (Con tus nombres exactos)
-                // El orden aquí es CRÍTICO para la asignación posterior
-                const sheetRequests = [
-                    'PRODUCTOS!A2:C',         // [0] Lee ID, Nombre, etc. hasta el infinito
-                    'MOVIMIENTOS!A2:F',       // [1]
-                    'UBICACIONES!A2:C',       // [2]
-                    'ORDENES!A2:H',           // [3]
-                    'CONTROLES!A2:F',         // [4]
-                    'ENTRADAS_SALIDAS!A2:H'   // [5] (Asumo que esta es tu tabla de historial/remitos)
-                ];
-
-                console.log("📡 Solicitando datos a Google Sheets...");
-
-                // 2. PETICIÓN A GOOGLE
+                // 1. Descarga usando los rangos corregidos de CONSTANTS
+                // IMPORTANTE: Asegúrate de haber corregido CONSTANTS en el Paso 1
+                const activeRanges = Object.values(CONSTANTS.RANGES);
+                
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
-                    ranges: sheetRequests 
+                    ranges: activeRanges 
+                });
+                const valueRanges = response.result.valueRanges;
+                
+                // 2. Asignación Dinámica
+                Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
+                    fullData[name] = valueRanges[index]?.values || [];
                 });
 
-                const valueRanges = response.result.valueRanges;
-
-                // 3. ASIGNACIÓN DE DATOS (Manual y Segura)
-                // Asignamos según el orden de la lista 'sheetRequests'
-                fullData.productos        = valueRanges[0].values || [];
-                fullData.movimientos      = valueRanges[1].values || [];
-                fullData.ubicaciones      = valueRanges[2].values || [];
-                fullData.ordenes          = valueRanges[3].values || [];
-                fullData.controles        = valueRanges[4].values || [];
-                fullData.entradas_salidas = valueRanges[5].values || []; 
-
-                // Inicializamos arrays vacíos para estructuras viejas si el código las pide, para evitar crashes
-                fullData.tareas = []; 
-                fullData.remitos = fullData.entradas_salidas; // Mapeo opcional por si usas 'remitos' en el código
-
-                // --- REPORTE DE CARGA EN CONSOLA ---
-                console.log(`📦 VOLUMEN CARGADO:`);
-                const totalProd = fullData.productos.length;
-                console.log(`- Productos: ${totalProd} filas`);
-                console.log(`- Ordenes: ${fullData.ordenes.length} filas`);
-
-                // 4. INDEXADO MASIVO DE PRODUCTOS (Para tus 10.000 Items)
+                // 3. Normalización de Nombres (Tu requerimiento principal)
+                // Ahora que CONSTANTS lee hasta el final, fullData.productos tendrá los 10k registros
                 const namesMap = new Map();
                 
-                // Usamos un bucle 'for' optimizado para velocidad
-                for (let i = 0; i < totalProd; i++) {
-                    const row = fullData.productos[i];
-                    // Aseguramos que la fila tenga datos
-                    if (row && row[0]) {
-                        // Limpieza: Texto, sin espacios, mayúsculas
-                        const idKey = String(row[0]).trim().toUpperCase();
-                        // Guardamos Nombre (Columna B / indice 1)
-                        if (idKey !== 'ID' && idKey !== 'CODIGO' && row[1]) {
-                            namesMap.set(idKey, row[1]);
-                        }
-                    }
-                }
-                console.log(`📚 DICCIONARIO CREADO: ${namesMap.size} productos únicos.`);
-
-                // 5. CORRECCIÓN DE NOMBRES EN ÓRDENES
-                let cambios = 0;
-                const totalOrd = fullData.ordenes.length;
-                
-                for (let i = 0; i < totalOrd; i++) {
-                    const order = fullData.ordenes[i];
-                    const rawId = order[3]; // Columna ID de producto en Ordenes
-                    
-                    if (rawId) {
-                        const idOrden = String(rawId).trim().toUpperCase();
-                        
-                        // Si existe en nuestro diccionario de productos
-                        if (namesMap.has(idOrden)) {
-                            const nombreOficial = namesMap.get(idOrden);
-                            
-                            // Si el nombre en la orden es diferente al oficial, lo corregimos
-                            if (order[2] !== nombreOficial) {
-                                order[2] = nombreOficial;
-                                cambios++;
+                if (fullData.productos) {
+                    fullData.productos.forEach(p => {
+                        // p[0]=ID, p[1]=Nombre. Limpiamos ID para asegurar coincidencia
+                        if (p[0]) {
+                            const idKey = String(p[0]).trim().toUpperCase();
+                            // Filtramos cabeceras y vacíos
+                            if (idKey !== 'ID' && idKey !== 'CODIGO' && idKey !== '') {
+                                namesMap.set(idKey, p[1]);
                             }
                         }
-                    }
+                    });
                 }
-                console.log(`✅ NOMBRES CORREGIDOS EN ÓRDENES: ${cambios}`);
-                console.timeEnd("Velocidad de Carga");
 
-                // 6. LIMPIEZA FINAL (Quitar filas totalmente vacías)
-                if (fullData.productos) fullData.productos = fullData.productos.filter(r => r[0]);
-                if (fullData.movimientos) fullData.movimientos = fullData.movimientos.filter(r => r[0]);
-                if (fullData.ordenes) fullData.ordenes = fullData.ordenes.filter(r => r[0]);
+                // Aplicamos la corrección a las Órdenes
+                if (fullData.ordenes) {
+                    fullData.ordenes.forEach(order => {
+                        const rawId = order[3]; // Columna ID
+                        if (rawId) {
+                            const idOrden = String(rawId).trim().toUpperCase();
+                            if (namesMap.has(idOrden)) {
+                                // Reemplazamos el nombre con el de la tabla Productos
+                                order[2] = namesMap.get(idOrden);
+                            }
+                        }
+                    });
+                }
+                
+                // 4. Limpieza de filas vacías para evitar errores de cálculo
+                ['productos', 'movimientos', 'ordenes'].forEach(key => {
+                    if (fullData[key]) fullData[key] = fullData[key].filter(r => r[0] && String(r[0]).trim() !== '');
+                });
 
-                // Guardamos copia de seguridad para filtros
+                // 5. Renderizado final
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
-
-                // 7. CÁLCULOS DEL SISTEMA
+                
                 processAndCalculateStock();
                 
-                // Si tienes una función para procesar 'entradas_salidas' o 'remitos', va aquí:
-                if (typeof processRemitos === 'function') processRemitos();
-                
+                // Procesar remitos si existe la tabla
+                if (fullData.entradas_salidas && fullData.entradas_salidas.length > 0) {
+                     fullData.remitos = fullData.entradas_salidas; // Alias para compatibilidad
+                     processRemitos();
+                }
+
                 processControlDates();
                 sortProducts('id', true); 
                 
                 renderAllViews();
 
             } catch (err) {
-                console.error("🔥 ERROR CRÍTICO:", err);
-                const msg = err.result ? err.result.error.message : err.message;
-                alert("Error al cargar datos: " + msg);
+                console.error(err);
                 handleApiError(err);
             } finally {
                 showLoading(false);
@@ -822,67 +781,118 @@
 
             tableBody.innerHTML = sortedTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
         }
+        // Variable para controlar la paginación local del módulo Productos
+        let productsVisibleLimit = 50;
+
         function renderProductsView() {
             const container = DOM.views.productos;
-            
-            const totalProducts = (fullData.productos || []).length;
-            let productsWithoutStock = 0;
-            let lowStockProducts = 0;
-            (fullData.productos || []).forEach(p => {
-                const stock = fullData.stockTotal.get(String(p[0] || '')) || 0;
-                if (stock === 0) {
-                    productsWithoutStock++;
-                }
-                if (stock > 0 && stock <= 2) {
-                    lowStockProducts++;
-                }
-            });
-            const lowStockPercentage = totalProducts > 0 ? (lowStockProducts / totalProducts * 100).toFixed(1) : 0;
+            if (!container) return;
 
-            container.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Productos</h2>
-                <div class="btn-group">
-                    <button class="btn btn-success" data-action="download-products-csv"><span class="material-icons align-middle me-1">file_download</span> Descargar CSV</button>
-                    <button class="btn btn-primary" data-action="show-new-product-modal"><span class="material-icons align-middle me-1">add</span> Nuevo Producto</button>
+            // 1. Cabecera Fija con Buscador
+            let html = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2><span class="material-icons align-middle me-2">inventory_2</span>Productos</h2>
+                    <span class="badge bg-primary fs-6">${(fullData.productos || []).length} Registros</span>
                 </div>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="card stat-card h-100"><div class="card-body text-center">
-                        <p class="stat-card-title mb-1">TOTAL DE PRODUCTOS</p>
-                        <p class="stat-card-value text-primary mb-0">${totalProducts}</p>
-                    </div></div>
-                </div>
-                 <div class="col-md-4">
-                    <div class="card stat-card h-100"><div class="card-body text-center">
-                        <p class="stat-card-title mb-1">PRODUCTOS SIN STOCK</p>
-                        <p class="stat-card-value text-danger mb-0">${productsWithoutStock}</p>
-                    </div></div>
-                </div>
-                 <div class="col-md-4">
-                    <div class="card stat-card h-100"><div class="card-body text-center">
-                        <p class="stat-card-title mb-1">PRODUCTOS CON BAJO STOCK (%)</p>
-                        <p class="stat-card-value text-warning mb-0">${lowStockPercentage}%</p>
-                    </div></div>
-                </div>
-            </div>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white"><span class="material-icons">search</span></span>
+                            <input type="text" id="product-search-input" class="form-control" placeholder="Buscar por ID o Nombre (En base completa)...">
+                        </div>
+                    </div>
+                </div>`;
 
-            <div class="row g-3 mb-4"><div class="col-md-12"><input type="text" id="product-search" class="form-control" placeholder="Buscar por ID Producto o Nombre..."></div></div>
-            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light"><tr>
-                <th data-action="sort-products" data-sort-by="id">ID Producto<span class="sort-icon"></span></th>
-                <th data-action="sort-products" data-sort-by="name">Nombre<span class="sort-icon"></span></th>
-                <th>EAN</th>
-                <th class="text-end" data-action="sort-products" data-sort-by="stock">Stock Disponible<span class="sort-icon"></span></th>
-                <th class="text-center">Acciones</th>
-            </tr></thead><tbody id="products-table"></tbody></table></div>`;
-            document.getElementById('products-table').innerHTML = (fullData.productos || []).map((prod) => {
-                const originalIndex = originalProducts.findIndex(p => p[0] === prod[0]);
-                return getProductRowHTML(prod, originalIndex);
-            }).join('');
-            updateSortIcons();
+            // 2. Procesamiento de Datos (Filtrado)
+            let products = fullData.productos || [];
+            
+            // Si hay búsqueda, filtramos sobre TODA la base (los 10.000)
+            const searchTerm = (document.getElementById('product-search-input')?.value || '').toLowerCase();
+            if (searchTerm) {
+                products = products.filter(p => 
+                    (p[0] && String(p[0]).toLowerCase().includes(searchTerm)) || 
+                    (p[1] && String(p[1]).toLowerCase().includes(searchTerm))
+                );
+            }
+
+            // 3. Renderizado Inteligente (Solo mostramos un lote para no colgar el navegador)
+            const visibleProducts = products.slice(0, productsVisibleLimit);
+            
+            if (visibleProducts.length === 0) {
+                html += `<div class="alert alert-info text-center">No se encontraron productos.</div>`;
+            } else {
+                html += `
+                <div class="table-responsive shadow-sm rounded bg-white">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>ID</th>
+                                <th>Descripción</th>
+                                <th>Categoría/Info</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                visibleProducts.forEach(p => {
+                    html += `
+                        <tr>
+                            <td class="fw-bold text-primary">${sanitizeHTML(p[0])}</td>
+                            <td>${sanitizeHTML(p[1])}</td>
+                            <td><span class="badge bg-light text-dark border">${sanitizeHTML(p[2] || '-')}</span></td>
+                        </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+                
+                // Botón "Cargar Más" si hay más datos ocultos
+                if (products.length > productsVisibleLimit) {
+                    html += `
+                    <div class="text-center mt-3">
+                        <small class="text-muted d-block mb-2">Mostrando ${visibleProducts.length} de ${products.length}</small>
+                        <button class="btn btn-outline-primary" onclick="showMoreProducts()">
+                            <span class="material-icons align-middle">expand_more</span> Cargar más resultados
+                        </button>
+                    </div>`;
+                }
+            }
+
+            container.innerHTML = html;
+            
+            // Restaurar foco y valor del buscador si existía
+            const input = document.getElementById('product-search-input');
+            if(input) {
+                input.value = searchTerm;
+                input.focus();
+                // Evento para búsqueda en tiempo real
+                input.onkeyup = () => {
+                    // Al buscar, reseteamos el límite para ver los primeros resultados de la búsqueda
+                    // Pero NO repintamos todo con renderProductsView() directo porque perderíamos el foco.
+                    // Mejor estrategia: Esperar Enter o usar debounce. Por simplicidad:
+                    if(event.key === 'Enter') { 
+                        productsVisibleLimit = 50; 
+                        renderProductsView(); 
+                    }
+                };
+                // Búsqueda al escribir (con debounce manual simple)
+                input.oninput = () => {
+                    // Solo renderizamos si cambia significativamente o paramos de escribir
+                    // Para evitar complejidad, dejamos que el usuario presione Enter o usemos un timeout
+                    clearTimeout(window.searchTimeout);
+                    window.searchTimeout = setTimeout(() => {
+                        productsVisibleLimit = 50;
+                        renderProductsView();
+                        document.getElementById('product-search-input').focus();
+                    }, 300);
+                };
+            }
         }
+
+        // Función global para el botón "Cargar Más"
+        window.showMoreProducts = () => {
+            productsVisibleLimit += 100; // Cargar 100 más
+            renderProductsView();
+        };
         function renderMovementsView() {
             const container = DOM.views.movimientos;
             const uniqueTypes = [...new Set((fullData.movimientos || []).map(m => m[4]).filter(Boolean))];
@@ -4945,6 +4955,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
