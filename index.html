@@ -392,53 +392,63 @@
         async function loadInitialData() {
             showLoading(true, 'Actualizando datos...');
             try {
-                // 1. Descarga de datos
+                // 1. Descarga de datos desde Google Sheets
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
                     ranges: Object.values(CONSTANTS.RANGES) 
                 });
                 const valueRanges = response.result.valueRanges;
                 
-                // 2. Asignación de datos
+                // 2. Asignación de datos a variables globales
                 Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
                     fullData[name] = valueRanges[index]?.values || [];
                 });
                 
-                // 3. Filtros de limpieza (Filas vacías)
-                if (fullData.controles) {
-                    fullData.controles = fullData.controles.filter(row => row[0] && row[3]);
-                }
-                if (fullData.movimientos) {
-                    fullData.movimientos = fullData.movimientos.filter(row => row[0]);
-                }
+                // 3. Filtros de limpieza (Eliminar filas vacías)
+                if (fullData.controles) fullData.controles = fullData.controles.filter(row => row[0] && row[3]);
+                if (fullData.movimientos) fullData.movimientos = fullData.movimientos.filter(row => row[0]);
 
-                // --- NUEVO: NORMALIZACIÓN DE NOMBRES DE PRODUCTOS ---
-                // Objetivo: Que las órdenes tengan el nombre "Oficial" de la tabla Productos
+                // --- NORMALIZACIÓN DE NOMBRES (CORRECCIÓN ROBUSTA) ---
                 
-                // A. Creamos un mapa rápido (Diccionario): ID -> Nombre Real
+                // A. Crear Diccionario de Productos: { "ID_LIMPIO" : "NOMBRE_OFICIAL" }
                 const namesMap = new Map();
-                if (fullData.productos) {
-                    fullData.productos.forEach(p => {
-                        // p[0] es ID, p[1] es Nombre
-                        if (p[0]) namesMap.set(String(p[0]).trim().toUpperCase(), p[1]);
-                    });
-                }
+                (fullData.productos || []).forEach(p => {
+                    // ID está en p[0], Nombre en p[1]
+                    if (p[0]) {
+                        // Convertimos a Texto, quitamos espacios y pasamos a mayúsculas para asegurar coincidencia
+                        const idLimpio = String(p[0]).trim().toUpperCase();
+                        namesMap.set(idLimpio, p[1]);
+                    }
+                });
 
-                // B. Corregimos las Órdenes en Memoria
-                if (fullData.ordenes) {
-                    fullData.ordenes.forEach(order => {
-                        // La estructura de orden es: [Fecha, IDVenta, NOMBRE(2), IDPROD(3), ...]
-                        const idProd = String(order[3] || '').trim().toUpperCase();
+                // B. Corregir Órdenes
+                let corregidos = 0;
+                let sinCoincidencia = 0;
+
+                (fullData.ordenes || []).forEach(order => {
+                    // IDProducto en Órdenes es la Columna 3 (índice 3)
+                    const rawId = order[3];
+                    
+                    if (rawId) {
+                        const idOrden = String(rawId).trim().toUpperCase();
                         
-                        // Si existe el ID en nuestra base de productos, REEMPLAZAMOS el nombre
-                        if (namesMap.has(idProd)) {
-                            order[2] = namesMap.get(idProd); 
+                        if (namesMap.has(idOrden)) {
+                            // SI COINCIDE: Reemplazamos el nombre (Columna 2, índice 2)
+                            order[2] = namesMap.get(idOrden);
+                            corregidos++;
+                        } else {
+                            // NO COINCIDE: Mantenemos el original
+                            sinCoincidencia++;
+                            // Descomenta la siguiente línea si quieres ver en la consola cuáles fallan:
+                            // console.warn(`No se encontró el producto ID: "${idOrden}" en la lista de Productos.`);
                         }
-                    });
-                }
-                // ----------------------------------------------------
+                    }
+                });
                 
-                // 4. Procesamiento habitual
+                console.log(`Normalización: ${corregidos} nombres corregidos. ${sinCoincidencia} IDs no encontrados en la base de productos.`);
+                // -----------------------------------------------------
+
+                // 4. Procesamiento final del sistema
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
                 
                 processAndCalculateStock();
@@ -4892,4 +4902,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
