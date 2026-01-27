@@ -318,7 +318,6 @@
         let domReady = false;
         const initialData = { productos: [], movimientos: [], ubicaciones: [], ordenes: [], controles: [], entradasSalidas: [], stockTotal: new Map(), stockPorUbicacion: new Map() };
         let fullData = { ...initialData };
-        let globalProductMap = new Map();
         let originalProducts = [];
         let processedRemitos = new Map();
         let activeModals = {};
@@ -391,62 +390,70 @@
         // --- 4. LÓGICA PRINCIPAL Y MANEJO DE DATOS ---
 
         async function loadInitialData() {
-            showLoading(true, 'Sincronizando Sistema (10k Productos)...');
+            showLoading(true, 'Sincronizando 10k Productos...');
             try {
-                // 1. Descarga Masiva (Usando tus rangos corregidos en CONSTANTS)
+                // 1. Descarga usando los rangos corregidos de CONSTANTS
+                // IMPORTANTE: Asegúrate de haber corregido CONSTANTS en el Paso 1
                 const activeRanges = Object.values(CONSTANTS.RANGES);
+                
                 const response = await gapi.client.sheets.spreadsheets.values.batchGet({ 
                     spreadsheetId: CONFIG.SPREADSHEET_ID, 
                     ranges: activeRanges 
                 });
                 const valueRanges = response.result.valueRanges;
                 
-                // 2. Asignación
+                // 2. Asignación Dinámica
                 Object.keys(CONSTANTS.RANGES).forEach((name, index) => {
                     fullData[name] = valueRanges[index]?.values || [];
                 });
 
-                // 3. GENERAR MAPA GLOBAL DE PRODUCTOS (Tu base de verdad)
-                globalProductMap.clear(); // Limpiamos por si es una recarga
+                // 3. Normalización de Nombres (Tu requerimiento principal)
+                // Ahora que CONSTANTS lee hasta el final, fullData.productos tendrá los 10k registros
+                const namesMap = new Map();
                 
                 if (fullData.productos) {
                     fullData.productos.forEach(p => {
-                        // p[0]=ID. Limpieza total para asegurar coincidencia
+                        // p[0]=ID, p[1]=Nombre. Limpiamos ID para asegurar coincidencia
                         if (p[0]) {
                             const idKey = String(p[0]).trim().toUpperCase();
-                            // Ignorar cabeceras y vacíos
+                            // Filtramos cabeceras y vacíos
                             if (idKey !== 'ID' && idKey !== 'CODIGO' && idKey !== '') {
-                                globalProductMap.set(idKey, p[1]); // ID -> Nombre
+                                namesMap.set(idKey, p[1]);
                             }
                         }
                     });
                 }
 
-                // 4. Normalizar Nombres en Órdenes (Usando el mapa global)
+                // Aplicamos la corrección a las Órdenes
                 if (fullData.ordenes) {
                     fullData.ordenes.forEach(order => {
-                        const rawId = order[3];
+                        const rawId = order[3]; // Columna ID
                         if (rawId) {
-                            const idKey = String(rawId).trim().toUpperCase();
-                            if (globalProductMap.has(idKey)) {
-                                // Si existe, ponemos el nombre oficial
-                                order[2] = globalProductMap.get(idKey);
+                            const idOrden = String(rawId).trim().toUpperCase();
+                            if (namesMap.has(idOrden)) {
+                                // Reemplazamos el nombre con el de la tabla Productos
+                                order[2] = namesMap.get(idOrden);
                             }
-                            // NOTA: Si NO existe, no hacemos nada aquí. 
-                            // El resaltado rojo lo haremos en la VISTA (Render).
                         }
                     });
                 }
                 
-                // 5. Limpiezas y Cálculos
+                // 4. Limpieza de filas vacías para evitar errores de cálculo
                 ['productos', 'movimientos', 'ordenes'].forEach(key => {
                     if (fullData[key]) fullData[key] = fullData[key].filter(r => r[0] && String(r[0]).trim() !== '');
                 });
 
+                // 5. Renderizado final
                 originalProducts = JSON.parse(JSON.stringify(fullData.productos || []));
                 
                 processAndCalculateStock();
-                if (fullData.entradas_salidas) fullData.remitos = fullData.entradas_salidas;
+                
+                // Procesar remitos si existe la tabla
+                if (fullData.entradas_salidas && fullData.entradas_salidas.length > 0) {
+                     fullData.remitos = fullData.entradas_salidas; // Alias para compatibilidad
+                     processRemitos();
+                }
+
                 processControlDates();
                 sortProducts('id', true); 
                 
@@ -679,83 +686,104 @@
                 `;
         }
         function renderTasksView() {
-            const container = DOM.views.tareas;
-            if (!container) return;
+            // 1. PRIMERO: Generamos las tareas para tener la info actualizada
+            generateVirtualTasks(); 
+            
+            // 2. AHORA SÍ: Filtramos y calculamos con los datos frescos
+            const pendingTasks = virtualTasks.filter(t => t.state.toUpperCase() === CONSTANTS.STATUS.PENDING);
 
-            // Agrupar órdenes pendientes por ID Producto
-            const tasksMap = new Map();
+            // Cálculo A: Suma total de unidades a pickear
+            const totalUnitsInPicking = pendingTasks.reduce((sum, t) => sum + t.totalQuantity, 0);
 
-            (fullData.ordenes || []).forEach(order => {
-                const status = (order[6] || '').toUpperCase();
-                if (status === 'PENDIENTE' || status === '') { // Solo pendientes
-                    const idProd = String(order[3]).trim().toUpperCase();
-                    
-                    if (!tasksMap.has(idProd)) {
-                        tasksMap.set(idProd, {
-                            id: idProd,
-                            name: order[2], // Ya viene normalizado por loadInitialData
-                            totalQty: 0,
-                            orders: []
-                        });
-                    }
-                    const task = tasksMap.get(idProd);
-                    task.totalQty += (parseInt(order[4]) || 0);
-                    task.orders.push(order[1]); // Guardamos ID Venta
+            // Cálculo B: Cantidad de órdenes únicas involucradas
+            const uniqueOrdersInPicking = new Set();
+            pendingTasks.forEach(t => {
+                if (t.orders && Array.isArray(t.orders)) {
+                    t.orders.forEach(o => {
+                        if (o.idVenta) uniqueOrdersInPicking.add(o.idVenta);
+                    });
                 }
             });
+            const totalOrdersCount = uniqueOrdersInPicking.size;
 
-            // Generar HTML
-            const tasks = Array.from(tasksMap.values());
-            
-            let html = `
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2><span class="material-icons align-middle me-2">assignment</span>Picking Pendiente</h2>
-                    <button class="btn btn-danger" data-action="download-tasks-pdf">
-                        <span class="material-icons align-middle me-1">picture_as_pdf</span> Descargar Lista
-                    </button>
-                </div>
-                <div class="row g-3">`;
+            // Datos de órdenes nuevas sin procesar (para el contador de la derecha)
+            const ordenesSinEstado = (fullData.ordenes || []).filter(o => !o[6] || o[6].trim() === '').length;
 
-            if (tasks.length === 0) {
-                html += `<div class="col-12"><div class="alert alert-success">¡Todo al día! No hay picking pendiente.</div></div>`;
-            }
-
-            tasks.forEach(task => {
-                // VERIFICAR SI EL PRODUCTO EXISTE
-                const exists = globalProductMap.has(task.id);
-                
-                // Estilos: Rojo si no existe, Azul si existe
-                const borderClass = exists ? 'border-primary' : 'border-danger';
-                const bgClass = exists ? '' : 'bg-danger-subtle'; // Fondo rojizo suave
-                const icon = exists 
-                    ? `<span class="material-icons text-primary fs-1">inventory_2</span>`
-                    : `<span class="material-icons text-danger fs-1">error_outline</span>`;
-                
-                const alertMsg = exists 
-                    ? `<small class="text-muted">${task.orders.length} órdenes</small>`
-                    : `<strong class="text-danger">ID NO ENCONTRADO EN SISTEMA</strong>`;
-
-                html += `
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 shadow-sm border-start border-4 ${borderClass} ${bgClass}">
-                        <div class="card-body d-flex align-items-center">
-                            <div class="me-3">${icon}</div>
-                            <div class="flex-grow-1">
-                                <h6 class="fw-bold mb-1">${sanitizeHTML(task.name)}</h6>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="badge bg-dark fs-6">${task.totalQty} Unid.</span>
-                                    <span class="text-muted small">ID: ${task.id}</span>
-                                </div>
-                                <div class="mt-2">${alertMsg}</div>
-                            </div>
-                        </div>
+            // 3. Renderizamos el HTML con los valores calculados
+            const container = DOM.views.tareas;
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-end mb-4">
+                <div>
+                    <h2 class="mb-2">Tareas de Picking</h2>
+                    <div class="d-flex gap-3">
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2 rounded-pill">
+                            <span class="material-icons align-middle fs-6 me-1">shopping_cart</span>
+                            Órdenes Activas: <strong class="fs-6">${totalOrdersCount}</strong>
+                        </span>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill">
+                            <span class="material-icons align-middle fs-6 me-1">layers</span>
+                            Unidades a Pickear: <strong class="fs-6">${totalUnitsInPicking}</strong>
+                        </span>
                     </div>
-                </div>`;
+                </div>
+
+                <div class="d-flex align-items-center">
+                    <div class="text-center me-3 p-2 bg-light rounded shadow-sm border">
+                        <div class="fw-bold fs-4 text-secondary">${ordenesSinEstado}</div>
+                        <small class="text-muted" style="font-size: 0.65rem;">POR PROCESAR</small>
+                    </div>
+                    <div class="btn-group shadow-sm">
+                        <button class="btn btn-outline-secondary" data-action="download-tasks-pdf" title="Descargar PDF">
+                            <span class="material-icons align-middle">picture_as_pdf</span>
+                        </button>
+                        <button class="btn btn-success" data-action="bulk-pick-tasks">
+                            <span class="material-icons align-middle me-1">done_all</span> Picking Masivo
+                        </button>
+                        <button class="btn btn-primary" data-action="generate-tasks">
+                            <span class="material-icons align-middle me-1">play_for_work</span> Generar Tareas
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover bg-white rounded shadow-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th><th>ID Producto</th><th>Nombre</th><th>Cant. Órdenes</th>
+                            <th class="text-end">Cantidad a Pickear</th><th>Ubicación Sugerida</th>
+                            <th class="text-center">Estado</th><th class="text-center">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tasks-table-body"></tbody>
+                </table>
+            </div>`;
+            
+            // 4. Llenamos la tabla
+            const tableBody = document.getElementById('tasks-table-body');
+            if(!tableBody) return;
+            
+            if (virtualTasks.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-5">
+                    <span class="material-icons fs-1 d-block mb-2">assignment_turned_in</span>
+                    No hay tareas de picking generadas.<br>
+                    <small>Presione "Generar Tareas" para procesar las órdenes pendientes.</small>
+                </td></tr>`;
+                return;
+            }
+            
+            // Ordenamos para mostrar pendientes primero
+            const sortedTasks = [...virtualTasks].sort((a, b) => {
+                if (a.state === CONSTANTS.STATUS.PENDING && b.state !== CONSTANTS.STATUS.PENDING) return -1;
+                if (a.state !== CONSTANTS.STATUS.PENDING && b.state === CONSTANTS.STATUS.PENDING) return 1;
+                return 0;
             });
 
-            html += `</div>`;
-            container.innerHTML = html;
+            tableBody.innerHTML = sortedTasks.map((task, index) => getTaskRowHTML(task, index)).join('');
         }
+        // Variable para controlar la paginación local del módulo Productos
+        let productsVisibleLimit = 50;
+
         function renderProductsView() {
             const container = DOM.views.productos;
             if (!container) return;
@@ -913,103 +941,85 @@
         }
         function renderOrdersView() {
             const container = DOM.views.ordenes;
-            if (!container) return;
 
-            // Filtramos órdenes (ignorando las canceladas o despachadas si quieres, aquí muestro todas)
-            // Simplemente tomamos fullData.ordenes y aplicamos filtros si existen
-            let orders = fullData.ordenes || [];
-            
-            // Lógica de filtrado visual (Buscador)
-            const searchTerm = (document.getElementById('order-search-input')?.value || '').toLowerCase();
-            if (searchTerm) {
-                orders = orders.filter(o => 
-                    String(o[2]).toLowerCase().includes(searchTerm) || // Producto
-                    String(o[3]).toLowerCase().includes(searchTerm) || // ID
-                    String(o[7]).toLowerCase().includes(searchTerm)    // Cliente
-                );
-            }
+            const ordersByChannel = (fullData.ordenes || [])
+                .filter(o => {
+                    const estado = (o[6] || '').toUpperCase();
+                    return estado !== CONSTANTS.STATUS.SHIPPED && estado !== CONSTANTS.STATUS.CANCELLED;
+                })
+                .reduce((acc, order) => {
+                    const channel = order[5] || 'SIN CANAL';
+                    acc[channel] = (acc[channel] || 0) + 1;
+                    return acc;
+                }, {});
 
-            // Paginación simple (mostrar últimas 100 para no saturar)
-            const visibleOrders = orders.slice(0, 100); 
+            const totalActiveOrders = Object.values(ordersByChannel).reduce((sum, count) => sum + count, 0);
 
-            let html = `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2><span class="material-icons align-middle me-2">shopping_cart</span>Órdenes de Compra</h2>
-                    <div class="input-group w-50">
-                        <span class="input-group-text bg-white"><span class="material-icons">search</span></span>
-                        <input type="text" id="order-search-input" class="form-control" placeholder="Buscar Cliente, ID o Producto..." value="${searchTerm}">
-                    </div>
+            const channelEntries = Object.entries(ordersByChannel).sort((a,b) => b[1] - a[1]);
+            const channelCardsHTML = channelEntries.map(([channel, count]) => `
+                <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1 text-uppercase">${sanitizeHTML(channel)}</p>
+                        <p class="stat-card-value text-secondary mb-0">${count}</p>
+                    </div></div>
                 </div>
-                
-                <div class="table-responsive shadow-sm rounded bg-white" style="max-height: 70vh;">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th>Fecha</th>
-                                <th>ID Venta</th>
-                                <th>Producto</th>
-                                <th>ID Prod</th>
-                                <th>Cant</th>
-                                <th>Cliente</th>
-                                <th>Estado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+            `).join('');
 
-            visibleOrders.forEach((order, index) => {
-                const status = (order[6] || 'PENDIENTE').toUpperCase();
-                
-                // VALIDACIÓN DE ID DESCONOCIDO
-                const rawId = order[3];
-                const idKey = String(rawId).trim().toUpperCase();
-                const isUnknownProduct = !globalProductMap.has(idKey);
-
-                // Si es desconocido, fila roja. Si no, normal.
-                const rowClass = isUnknownProduct ? 'table-danger' : '';
-                const warningIcon = isUnknownProduct 
-                    ? `<span class="material-icons text-danger align-middle fs-5" title="ID NO EXISTE EN PRODUCTOS">warning</span>` 
-                    : '';
-
-                // Badge de estado
-                let badgeClass = 'bg-secondary';
-                if (status === 'PICKED' || status === 'PREPARADO') badgeClass = 'bg-success';
-                if (status === 'CANCELADO') badgeClass = 'bg-danger';
-                if (status === 'PENDIENTE') badgeClass = 'bg-warning text-dark';
-
-                html += `
-                    <tr class="${rowClass}">
-                        <td><small>${sanitizeHTML(order[0])}</small></td>
-                        <td><small>${sanitizeHTML(order[1])}</small></td>
-                        <td>
-                            ${warningIcon} 
-                            <span class="${isUnknownProduct ? 'fw-bold text-danger' : ''}">${sanitizeHTML(order[2])}</span>
-                        </td>
-                        <td><small class="text-muted">${sanitizeHTML(order[3])}</small></td>
-                        <td class="fw-bold text-center">${sanitizeHTML(order[4])}</td>
-                        <td><small>${sanitizeHTML(order[7])}</small></td>
-                        <td><span class="badge ${badgeClass}">${status}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick="showEditOrderModal(${index})">
-                                <span class="material-icons" style="font-size:16px">edit</span>
-                            </button>
-                        </td>
-                    </tr>`;
-            });
-
-            html += `</tbody></table></div>`;
+            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
+            let channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">${sanitizeHTML(c)}</option>`).join('');
+            const hasIncidents = (fullData.ordenes || []).some(o => o[6] && o[6].toUpperCase() === CONSTANTS.STATUS.INCIDENCE);
             
-            if (orders.length === 0) html += `<div class="p-4 text-center text-muted">No hay órdenes para mostrar</div>`;
+            const incidentButtonHTML = hasIncidents ? `<button class="btn btn-danger" data-action="show-incident-modal"><span class="material-icons align-middle me-1">warning</span> Gestión de Incidencias</button>` : '';
+            const massActionsHTML = `
+                <button class="btn btn-secondary" data-action="bulk-generate-remito" title="Generar remito para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">receipt_long</span> Remito (Filtro)
+                </button>
+                <button class="btn btn-info" data-action="bulk-print-labels" title="Imprimir etiquetas para todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">label</span> Imprimir (Filtro)
+                </button>
+                <button class="btn btn-success" data-action="bulk-dispatch" title="Despachar todas las órdenes visibles en estado PICKEADO">
+                    <span class="material-icons align-middle me-1">local_shipping</span> Despacho (Filtro)
+                </button>`;
+            const newOrderButtonHTML = `<button class="btn btn-primary" data-action="show-manual-order-modal"><span class="material-icons align-middle me-1">add</span> Nueva Orden</button>`;
+            
+            const visibleOrdersHTML = (fullData.ordenes || [])
+                .map((order, index) => ({ order, originalIndex: index }))
+                .filter(item => {
+                    const estado = (item.order[6] || '').toUpperCase();
+                    return estado === CONSTANTS.STATUS.PENDING || estado === CONSTANTS.STATUS.PICKED;
+                })
+                .map(item => getOrderRowHTML(item.order, item.originalIndex))
+                .join('');
 
-            container.innerHTML = html;
+            container.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Órdenes</h2>
+                <div class="btn-group">
+                    ${incidentButtonHTML}
+                    ${massActionsHTML}
+                    ${newOrderButtonHTML}
+                </div>
+            </div>
 
-            // Re-vincular evento de búsqueda
-            const searchInput = document.getElementById('order-search-input');
-            if(searchInput) {
-                searchInput.addEventListener('keyup', (e) => {
-                    if (e.key === 'Enter') renderOrdersView();
-                });
-            }
+            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+                 <div class="col">
+                    <div class="card stat-card h-100"><div class="card-body text-center">
+                        <p class="stat-card-title mb-1">ÓRDENES ACTIVAS</p>
+                        <p class="stat-card-value text-primary mb-0">${totalActiveOrders}</p>
+                    </div></div>
+                </div>
+                ${channelCardsHTML}
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6"><input type="text" id="order-search" class="form-control" placeholder="Buscar por ID Venta, Cliente, Producto, ID Producto o Nro de Orden..."></div>
+                <div class="col-md-3"><input type="date" id="order-date-filter" class="form-control"></div>
+                <div class="col-md-3"><select id="order-channel-filter" class="form-select"><option value="">Todos los Canales</option>${channelOptions}</select></div>
+            </div>
+            <div class="table-responsive"><table class="table table-hover bg-white rounded shadow-sm"><thead class="table-light">
+                <tr><th>Fecha</th><th>ID Venta / Cliente</th><th>Producto</th><th>ID Producto</th><th>Cantidad</th><th>Canal</th><th>Estado</th><th class="text-center">Orden</th><th class="text-center">Acciones</th></tr>
+            </thead><tbody id="orders-table">${visibleOrdersHTML}</tbody></table>
+            </div>`;
         }
         function renderControlsView() {
             const container = DOM.views.controles;
@@ -4945,12 +4955,3 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
