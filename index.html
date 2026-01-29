@@ -784,6 +784,7 @@
         // Variable para controlar la paginación local del módulo Productos
         let productsVisibleLimit = 50;
 
+        // --- VISTA DE PRODUCTOS (CON STOCK Y OJO) ---
         function renderProductsView() {
             const container = DOM.views.productos;
             if (!container) return;
@@ -799,7 +800,7 @@
                     <div class="card-body">
                         <div class="input-group">
                             <span class="input-group-text bg-white"><span class="material-icons">search</span></span>
-                            <input type="text" id="product-search-input" class="form-control" placeholder="Buscar ID o Nombre...">
+                            <input type="text" id="product-search-input" class="form-control" placeholder="Buscar ID o Nombre en toda la base de datos...">
                         </div>
                     </div>
                 </div>`;
@@ -815,7 +816,7 @@
                 );
             }
 
-            // 3. Paginación
+            // 3. Paginación (Usando la variable global)
             const visibleProducts = products.slice(0, productsVisibleLimit);
             
             if (visibleProducts.length === 0) {
@@ -835,28 +836,32 @@
                         <tbody>`;
                 
                 visibleProducts.forEach(p => {
-                    // ID Limpio para buscar en el mapa de stock
+                    // Limpieza del ID para buscar en los mapas
                     const idLimpio = String(p[0]).trim().toUpperCase();
                     
-                    // Obtenemos el stock total calculado previamente
-                    const stock = fullData.stockTotal ? (fullData.stockTotal.get(idLimpio) || 0) : 0;
+                    // Obtener Stock Total (Calculado en processAndCalculateStock)
+                    let stock = 0;
+                    if (fullData.stockTotal && fullData.stockTotal.has(idLimpio)) {
+                        stock = fullData.stockTotal.get(idLimpio);
+                    }
                     
-                    // Estilo del stock (Gris si es 0, Verde si hay, Rojo si es negativo)
+                    // Colores del Badge
                     let badgeClass = 'bg-secondary';
                     if (stock > 0) badgeClass = 'bg-success';
                     else if (stock < 0) badgeClass = 'bg-danger';
 
-                    // Botón del Ojo: Pasamos el ID limpio
-                    // Usamos comillas simples escapadas para el ID por si tiene caracteres raros
+                    // ID seguro para pasar a la función (escapando comillas simples)
+                    const safeId = idLimpio.replace(/'/g, "\\'");
+
                     html += `
                         <tr>
                             <td class="fw-bold text-primary">${sanitizeHTML(p[0])}</td>
                             <td>${sanitizeHTML(p[1])}</td>
                             <td class="text-center">
-                                <span class="badge ${badgeClass} fs-6" style="min-width: 40px;">${stock}</span>
+                                <span class="badge ${badgeClass} fs-6" style="min-width: 45px;">${stock}</span>
                             </td>
                             <td class="text-center">
-                                <button class="btn btn-sm btn-outline-info" onclick="showProductLocations('${idLimpio}')" title="Ver ubicaciones">
+                                <button class="btn btn-sm btn-outline-info" onclick="window.showProductLocations('${safeId}')" title="Ver detalle de ubicaciones">
                                     <span class="material-icons align-middle">visibility</span>
                                 </button>
                             </td>
@@ -879,7 +884,7 @@
 
             container.innerHTML = html;
             
-            // Mantener foco buscador
+            // Mantener foco en buscador
             const input = document.getElementById('product-search-input');
             if(input) {
                 input.value = searchTerm;
@@ -892,6 +897,86 @@
                 };
             }
         }
+
+        // --- FUNCIÓN DEL OJO (Correctamente ubicada para ver fullData) ---
+        window.showProductLocations = (productId) => {
+            console.log("Consultando ubicaciones para:", productId);
+
+            // 1. Nombre del producto
+            const productName = globalProductMap.has(productId) 
+                ? globalProductMap.get(productId) 
+                : "Producto Desconocido";
+
+            // 2. Buscar desglose
+            let locationsHtml = '';
+            let totalInLocs = 0;
+            let found = false;
+
+            if (fullData.stockPorUbicacion && fullData.stockPorUbicacion.has(productId)) {
+                const locsMap = fullData.stockPorUbicacion.get(productId);
+                
+                if (locsMap.size > 0) {
+                    locationsHtml = `<div class="list-group list-group-flush">`;
+                    
+                    locsMap.forEach((qty, loc) => {
+                        if (qty !== 0) { // Ocultar ubicaciones con 0
+                            found = true;
+                            totalInLocs += qty;
+                            locationsHtml += `
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <span class="material-icons text-muted me-2">place</span>
+                                        <span class="fw-bold text-dark">${loc}</span>
+                                    </div>
+                                    <span class="badge ${qty > 0 ? 'bg-primary' : 'bg-danger'} rounded-pill fs-6">${qty}</span>
+                                </div>`;
+                        }
+                    });
+                    locationsHtml += `</div>`;
+                }
+            }
+
+            // Si no se encontró nada
+            if (!found) {
+                locationsHtml = `
+                    <div class="text-center py-4 text-muted">
+                        <span class="material-icons fs-1 opacity-25">where_to_vote</span>
+                        <p class="mb-0">No se encontraron existencias físicas.</p>
+                    </div>`;
+            }
+
+            // 3. Crear Modal
+            const modalHTML = `
+            <div class="modal fade" id="productLocsModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content shadow border-0">
+                        <div class="modal-header bg-info text-white">
+                            <h5 class="modal-title"><span class="material-icons align-middle me-2">visibility</span>Ubicaciones</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="p-3 bg-light border-bottom">
+                                <small class="text-muted text-uppercase fw-bold">Producto</small>
+                                <div class="fs-5 fw-bold text-dark">${sanitizeHTML(productName)}</div>
+                                <div class="text-muted small">ID: ${productId}</div>
+                            </div>
+                            <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-secondary">Total Consolidado:</span>
+                                <span class="badge ${totalInLocs > 0 ? 'bg-success' : 'bg-danger'} fs-5">${totalInLocs}</span>
+                            </div>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                ${locationsHtml}
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light">
+                            <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+
+            createAndShowModal('productLocsModal', modalHTML);
+        };
         function renderMovementsView() {
             const container = DOM.views.movimientos;
             const uniqueTypes = [...new Set((fullData.movimientos || []).map(m => m[4]).filter(Boolean))];
@@ -5029,3 +5114,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
