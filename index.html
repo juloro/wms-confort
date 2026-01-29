@@ -835,24 +835,22 @@
                         </thead>
                         <tbody>`;
                 
+                // DENTRO DE renderProductsView...
                 visibleProducts.forEach(p => {
-                    // Limpieza del ID para buscar en los mapas
                     const idLimpio = String(p[0]).trim().toUpperCase();
                     
-                    // Obtener Stock Total (Calculado en processAndCalculateStock)
+                    // Obtener Stock Total
                     let stock = 0;
                     if (fullData.stockTotal && fullData.stockTotal.has(idLimpio)) {
                         stock = fullData.stockTotal.get(idLimpio);
                     }
                     
-                    // Colores del Badge
                     let badgeClass = 'bg-secondary';
                     if (stock > 0) badgeClass = 'bg-success';
                     else if (stock < 0) badgeClass = 'bg-danger';
 
-                    // ID seguro para pasar a la función (escapando comillas simples)
-                    const safeId = idLimpio.replace(/'/g, "\\'");
-
+                    // --- CAMBIO AQUÍ: Usamos data-action en lugar de onclick ---
+                    // Eliminamos window.showProductLocations y usamos data-action="view-locations"
                     html += `
                         <tr>
                             <td class="fw-bold text-primary">${sanitizeHTML(p[0])}</td>
@@ -861,13 +859,15 @@
                                 <span class="badge ${badgeClass} fs-6" style="min-width: 45px;">${stock}</span>
                             </td>
                             <td class="text-center">
-                                <button class="btn btn-sm btn-outline-info" onclick="window.showProductLocations('${safeId}')" title="Ver detalle de ubicaciones">
+                                <button class="btn btn-sm btn-outline-info" 
+                                    type="button"
+                                    data-action="view-locations" 
+                                    data-id="${sanitizeHTML(idLimpio)}">
                                     <span class="material-icons align-middle">visibility</span>
                                 </button>
                             </td>
                         </tr>`;
                 });
-
                 html += `</tbody></table></div>`;
                 
                 // Botón Cargar Más
@@ -3894,6 +3894,100 @@
             if (inputMap[target.id]) inputMap[target.id]();
             
             const action = target.dataset.action;
+            async function handleAction(e) {
+            const target = e.target.closest('[data-action]');
+            if (!target) return;
+
+            const action = target.dataset.action;
+
+            // --- PEGAR ESTE BLOQUE AQUÍ ---
+            
+            // ACCIÓN: VER UBICACIONES (EL OJO)
+            if (action === 'view-locations') {
+                const productId = target.dataset.id;
+                console.log("🔍 Consultando ubicaciones para ID:", productId);
+
+                // 1. Obtener Nombre
+                const productName = globalProductMap.has(productId) 
+                    ? globalProductMap.get(productId) 
+                    : "Producto no encontrado en base";
+
+                // 2. Construir lista de ubicaciones
+                let locationsHtml = '';
+                let totalInLocs = 0;
+                let found = false;
+
+                // Verificamos si existe el mapa de stock por ubicación
+                if (fullData.stockPorUbicacion && fullData.stockPorUbicacion.has(productId)) {
+                    const locsMap = fullData.stockPorUbicacion.get(productId);
+                    
+                    if (locsMap.size > 0) {
+                        locationsHtml = `<div class="list-group list-group-flush">`;
+                        locsMap.forEach((qty, loc) => {
+                            if (qty !== 0) { // Solo mostramos si hay cantidad
+                                found = true;
+                                totalInLocs += qty;
+                                locationsHtml += `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <span class="material-icons text-muted me-2">place</span>
+                                            <span class="fw-bold text-dark">${loc}</span>
+                                        </div>
+                                        <span class="badge ${qty > 0 ? 'bg-primary' : 'bg-danger'} rounded-pill">${qty}</span>
+                                    </div>`;
+                            }
+                        });
+                        locationsHtml += `</div>`;
+                    }
+                }
+
+                if (!found) {
+                    locationsHtml = `
+                        <div class="text-center py-4 text-muted">
+                            <span class="material-icons fs-1 opacity-25">where_to_vote</span>
+                            <p class="mb-0">No se encontraron existencias físicas.</p>
+                        </div>`;
+                }
+
+                // 3. Crear Modal
+                const modalHTML = `
+                <div class="modal fade" id="productLocsModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title"><span class="material-icons align-middle me-2">visibility</span>Detalle de Ubicaciones</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-0">
+                                <div class="p-3 bg-light border-bottom">
+                                    <small class="text-uppercase text-muted fw-bold" style="font-size:0.75rem">Producto</small>
+                                    <div class="fw-bold text-dark fs-5">${sanitizeHTML(productName)}</div>
+                                    <div class="text-muted small">ID: ${productId}</div>
+                                </div>
+                                <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-secondary">Stock Total Consolidado</span>
+                                    <span class="badge ${totalInLocs > 0 ? 'bg-success' : 'bg-danger'} fs-5">${totalInLocs}</span>
+                                </div>
+                                <div class="bg-white" style="max-height: 300px; overflow-y: auto;">
+                                    ${locationsHtml}
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+                createAndShowModal('productLocsModal', modalHTML);
+                return; // Importante para detener la ejecución aquí
+            }
+            // ----------------------------------------------------
+
+            // (Aquí sigue el resto de tu código: cancel-order, save-order, etc.)
+            if (action === 'cancel-order') {
+                // ...
+            }
             if (action === 'search-products-for-movement') {
                 searchProductsForMovement(target, 'select-product-for-movement');
             } else if (action === 'search-products-for-control') {
@@ -5114,4 +5208,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
