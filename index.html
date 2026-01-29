@@ -4937,7 +4937,14 @@ async function bulkPickTasks() {
                     controles: document.getElementById('controles'),
                     // NUEVO
                     reportes: document.getElementById('reportes'),
-                    // --- FUNCIÓN PARA VER UBICACIONES DE UN PRODUCTO ---
+                }
+            };
+            
+            domReady = true;
+            initializeEventListeners();
+            maybeEnableAuthButton();
+        });
+// --- FUNCIÓN PARA VER UBICACIONES DE UN PRODUCTO ---
         window.showProductLocations = (productId) => {
             // 1. Buscar Nombre del Producto
             const productName = globalProductMap.has(productId) 
@@ -5013,14 +5020,6 @@ async function bulkPickTasks() {
 
             createAndShowModal('productLocsModal', modalHTML);
         };
-                }
-            };
-            
-            domReady = true;
-            initializeEventListeners();
-            maybeEnableAuthButton();
-        });
-
     })();
     </script>
     
@@ -5030,4 +5029,3 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
