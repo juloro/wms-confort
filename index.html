@@ -3836,6 +3836,8 @@
                 const fileInput = document.getElementById('order-ai-upload');
                 if (fileInput) {
                     fileInput.click(); 
+                } else {
+                    console.error("No se encuentra el input oculto 'order-ai-upload'");
                 }
                 return;
             }
@@ -4419,11 +4421,12 @@
             
             createAndShowModal('addOrderModal', modalHTML);
 
-            // Vinculación del evento Change (Vital para que funcione la subida)
+            // Vinculación segura
             setTimeout(() => {
                 const aiInput = document.getElementById('order-ai-upload');
                 if(aiInput) {
-                    aiInput.onchange = handleOrderAIUpload;
+                    aiInput.onchange = null; // Limpiar anteriores
+                    aiInput.onchange = handleOrderAIUpload; // Asignar nuevo
                     console.log("Escáner IA vinculado correctamente.");
                 }
             }, 300); 
@@ -5252,6 +5255,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
