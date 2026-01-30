@@ -1530,20 +1530,19 @@
                 });
 
                 // 2. Crear el Prompt para Gemini
-                // Le pedimos explícitamente formato JSON y los campos que necesitamos
                 const prompt = `
                     Analiza esta imagen (orden de compra, etiqueta de envío, factura o remito).
                     Extrae la información y devuélvela EXCLUSIVAMENTE en formato JSON válido con estas claves:
                     {
-                        "fecha": "YYYY-MM-DD (Si no hay año, usa el actual. Si no hay fecha, usa hoy)",
+                        "fecha": "YYYY-MM-DD (Si no hay año usa el actual, si no hay fecha usa hoy)",
                         "id_venta": "Número de pedido, orden o factura",
                         "producto_nombre": "Nombre descriptivo del producto principal",
-                        "id_producto": "SKU, Código o Modelo del producto (si aparece)",
+                        "id_producto": "SKU, Código o Modelo (si aparece)",
                         "cantidad": "Número entero (default 1)",
-                        "canal": "Origen de la venta (MercadoLibre, Web, Mostrador, etc)",
+                        "canal": "Origen de la venta (MercadoLibre, Web, Mostrador)",
                         "cliente": "Nombre del comprador"
                     }
-                    No uses markdown, solo el JSON plano.
+                    No uses markdown, solo JSON plano.
                 `;
 
                 // 3. Enviar a Gemini
@@ -1562,42 +1561,34 @@
 
                 const data = await response.json();
                 
-                // 4. Procesar y Limpiar Respuesta
+                // 4. Procesar Respuesta
                 if (!data.candidates || !data.candidates[0].content) {
                     throw new Error("No se pudo interpretar la imagen.");
                 }
 
                 const textResponse = data.candidates[0].content.parts[0].text;
-                // Limpiamos posibles bloques de código ```json ... ```
                 const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
                 const result = JSON.parse(cleanJson);
 
-                // 5. Rellenar Formulario Automáticamente
+                // 5. Rellenar Formulario
                 if (result.fecha) document.getElementById('addOrderDate').value = result.fecha;
                 if (result.id_venta) document.getElementById('addOrderVentaID').value = result.id_venta;
-                
-                // Tratamos de poner el nombre del producto
-                if (result.producto_nombre) {
-                    document.getElementById('addOrderProduct').value = result.producto_nombre;
-                }
-                
+                if (result.producto_nombre) document.getElementById('addOrderProduct').value = result.producto_nombre;
                 if (result.id_producto) document.getElementById('addOrderIdProd').value = result.id_producto;
                 if (result.cantidad) document.getElementById('addOrderQty').value = result.cantidad;
                 if (result.canal) document.getElementById('addOrderChannel').value = result.canal.toUpperCase();
                 if (result.cliente) document.getElementById('addOrderCustomer').value = result.cliente;
 
-                alert("✅ Datos extraídos con éxito.\nPor favor verifica la información antes de guardar.");
+                alert("✅ Datos extraídos con éxito. Verifica antes de guardar.");
 
             } catch (error) {
                 console.error("Error IA:", error);
                 alert("Hubo un error al procesar la imagen: " + error.message);
             } finally {
                 showLoading(false);
-                // Limpiar el input para permitir subir la misma imagen de nuevo si es necesario
                 document.getElementById('order-ai-upload').value = '';
             }
         }
-
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -3840,13 +3831,13 @@
                 return;
             }
 
-            // 2. ACTIVAR ESCÁNER IA (Clic en botón amarillo)
+            // 2. CLICK EN BOTÓN AMARILLO (Activar input oculto)
             if (action === 'scan-order-ai') {
                 const fileInput = document.getElementById('order-ai-upload');
                 if (fileInput) {
-                    fileInput.click(); // Dispara el input oculto
+                    fileInput.click(); 
                 } else {
-                    console.error("Error: No se encuentra el input order-ai-upload");
+                    console.error("No se encuentra el input order-ai-upload");
                 }
                 return;
             }
@@ -4344,11 +4335,11 @@
             finally { showLoading(false); }
         }
         function showAddOrderModal() {
-            console.log("Abriendo Modal Nueva Orden..."); 
+            console.log("Abriendo Modal Nueva Orden con IA..."); 
 
             const today = new Date().toISOString().split('T')[0];
             
-            // Generamos las opciones para las listas desplegables
+            // Generar opciones para las listas
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
             const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
@@ -4369,7 +4360,7 @@
                                     <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR COMPROBANTE CON IA
                                 </button>
                                 <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
-                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube una foto de la etiqueta, factura o pedido.</small>
+                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube foto de la etiqueta, factura o pedido.</small>
                             </div>
                             <hr>
 
@@ -4396,7 +4387,7 @@
                                 <div class="row g-2">
                                     <div class="col-6 mb-3">
                                         <label class="form-label fw-bold">ID Prod (SKU)</label>
-                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático si se detecta">
+                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático">
                                     </div>
                                     <div class="col-6 mb-3">
                                         <label class="form-label fw-bold">Cantidad</label>
@@ -4434,11 +4425,10 @@
             setTimeout(() => {
                 const aiInput = document.getElementById('order-ai-upload');
                 if(aiInput) {
-                    // Limpiamos listeners previos para evitar duplicados y agregamos el nuevo
                     aiInput.onchange = handleOrderAIUpload;
                     console.log("Escáner IA vinculado correctamente.");
                 }
-            }, 300); // Esperamos 300ms a que el modal se renderice
+            }, 300); 
         }
         async function saveOrderNumber(originalIndex) {
             const orderNumber = document.getElementById('orderNumberInput').value;
@@ -5227,5 +5217,6 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
