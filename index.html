@@ -1513,6 +1513,90 @@
                 .slice(0, 5)
                 .map(item => item.product);
         }
+        // --- FUNCIÓN IA PARA PROCESAR ÓRDENES ---
+        async function handleOrderAIUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading(true, "Analizando documento con IA...");
+
+            try {
+                // 1. Convertir imagen a Base64
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = error => reject(error);
+                    reader.readAsDataURL(file);
+                });
+
+                // 2. Crear el Prompt para Gemini
+                // Le pedimos explícitamente formato JSON y los campos que necesitamos
+                const prompt = `
+                    Analiza esta imagen (orden de compra, etiqueta de envío, factura o remito).
+                    Extrae la información y devuélvela EXCLUSIVAMENTE en formato JSON válido con estas claves:
+                    {
+                        "fecha": "YYYY-MM-DD (Si no hay año, usa el actual. Si no hay fecha, usa hoy)",
+                        "id_venta": "Número de pedido, orden o factura",
+                        "producto_nombre": "Nombre descriptivo del producto principal",
+                        "id_producto": "SKU, Código o Modelo del producto (si aparece)",
+                        "cantidad": "Número entero (default 1)",
+                        "canal": "Origen de la venta (MercadoLibre, Web, Mostrador, etc)",
+                        "cliente": "Nombre del comprador"
+                    }
+                    No uses markdown, solo el JSON plano.
+                `;
+
+                // 3. Enviar a Gemini
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CONFIG.API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inline_data: { mime_type: file.type, data: base64Data } }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                
+                // 4. Procesar y Limpiar Respuesta
+                if (!data.candidates || !data.candidates[0].content) {
+                    throw new Error("No se pudo interpretar la imagen.");
+                }
+
+                const textResponse = data.candidates[0].content.parts[0].text;
+                // Limpiamos posibles bloques de código ```json ... ```
+                const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                const result = JSON.parse(cleanJson);
+
+                // 5. Rellenar Formulario Automáticamente
+                if (result.fecha) document.getElementById('addOrderDate').value = result.fecha;
+                if (result.id_venta) document.getElementById('addOrderVentaID').value = result.id_venta;
+                
+                // Tratamos de poner el nombre del producto
+                if (result.producto_nombre) {
+                    document.getElementById('addOrderProduct').value = result.producto_nombre;
+                }
+                
+                if (result.id_producto) document.getElementById('addOrderIdProd').value = result.id_producto;
+                if (result.cantidad) document.getElementById('addOrderQty').value = result.cantidad;
+                if (result.canal) document.getElementById('addOrderChannel').value = result.canal.toUpperCase();
+                if (result.cliente) document.getElementById('addOrderCustomer').value = result.cliente;
+
+                alert("✅ Datos extraídos con éxito.\nPor favor verifica la información antes de guardar.");
+
+            } catch (error) {
+                console.error("Error IA:", error);
+                alert("Hubo un error al procesar la imagen: " + error.message);
+            } finally {
+                showLoading(false);
+                // Limpiar el input para permitir subir la misma imagen de nuevo si es necesario
+                document.getElementById('order-ai-upload').value = '';
+            }
+        }
 
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
@@ -3750,6 +3834,22 @@
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
+            // 1. ABRIR MODAL NUEVA ORDEN
+            if (action === 'new-order') {
+                showAddOrderModal();
+                return;
+            }
+
+            // 2. ACTIVAR ESCÁNER IA (Clic en botón amarillo)
+            if (action === 'scan-order-ai') {
+                const fileInput = document.getElementById('order-ai-upload');
+                if (fileInput) {
+                    fileInput.click(); // Dispara el input oculto
+                } else {
+                    console.error("Error: No se encuentra el input order-ai-upload");
+                }
+                return;
+            }
             // --- INICIO BLOQUE LUPA DE STOCK ---
             if (action === 'view-stock-locations') {
                 const productId = target.dataset.id;
@@ -4243,36 +4343,102 @@
             } catch (err) { handleApiError(err); }  
             finally { showLoading(false); }
         }
-        function showAddOrderModal(originalIndex) {
-            const order = fullData.ordenes[originalIndex];
-            if (!order) return alert('Error: No se pudo encontrar la orden.');
+        function showAddOrderModal() {
+            console.log("Abriendo Modal Nueva Orden..."); 
+
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Generamos las opciones para las listas desplegables
+            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
+            const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
+            const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
 
             const modalHTML = `
-            <div class="modal fade" id="${CONSTANTS.IDS.ADD_ORDER_MODAL}" tabindex="-1">
+            <div class="modal fade" id="addOrderModal" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Agregar Número de Orden</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title"><span class="material-icons align-middle me-2">add_shopping_cart</span>Nueva Orden</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <p><strong>ID Venta:</strong> ${sanitizeHTML(order[1])}</p>
-                            <p><strong>Producto:</strong> ${sanitizeHTML(order[2])}</p>
-                            <p><strong>Cliente:</strong> ${sanitizeHTML(order[7] || 'N/A')}</p>
-                            <hr>
-                            <div class="mb-3">
-                                <label for="orderNumberInput" class="form-label">Número de Orden del Sistema</label>
-                                <input type="text" class="form-control" id="orderNumberInput" placeholder="Ingrese el número de orden...">
+                            
+                            <div class="p-3 mb-4 bg-light border rounded text-center">
+                                <label class="fw-bold text-muted small mb-2">AUTOCOMPLETADO INTELIGENTE</label>
+                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm py-2" data-action="scan-order-ai">
+                                    <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR COMPROBANTE CON IA
+                                </button>
+                                <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
+                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube una foto de la etiqueta, factura o pedido.</small>
                             </div>
+                            <hr>
+
+                            <form id="addOrderForm">
+                                <div class="row g-2">
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">Fecha</label>
+                                        <input type="date" class="form-control" id="addOrderDate" value="${today}" required>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">ID Venta / Ref</label>
+                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="#12345" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Producto</label>
+                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Escribe para buscar..." required>
+                                    <datalist id="productsList">
+                                        ${productOptions}
+                                    </datalist>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">ID Prod (SKU)</label>
+                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático si se detecta">
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">Cantidad</label>
+                                        <input type="number" class="form-control" id="addOrderQty" value="1" min="1" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Canal de Venta</label>
+                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel" placeholder="Selecciona o escribe...">
+                                    <datalist id="channelOptionsAdd">
+                                        <option value="RETIRO LOCAL">
+                                        <option value="MOSTRADOR">
+                                        ${channelOptions}
+                                    </datalist>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Cliente</label>
+                                    <input type="text" class="form-control" id="addOrderCustomer" placeholder="Nombre completo">
+                                </div>
+                            </form>
                         </div>
-                        <div class="modal-footer">
+                        <div class="modal-footer justify-content-between">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" data-action="save-order-number" data-order-index="${originalIndex}">Guardar Número</button>
+                            <button type="button" class="btn btn-primary px-4" data-action="save-new-order">Guardar Orden</button>
                         </div>
                     </div>
                 </div>
             </div>`;
-            createAndShowModal(CONSTANTS.IDS.ADD_ORDER_MODAL, modalHTML);
+            
+            createAndShowModal('addOrderModal', modalHTML);
+
+            // Vinculación del evento Change (Vital para que funcione la subida)
+            setTimeout(() => {
+                const aiInput = document.getElementById('order-ai-upload');
+                if(aiInput) {
+                    // Limpiamos listeners previos para evitar duplicados y agregamos el nuevo
+                    aiInput.onchange = handleOrderAIUpload;
+                    console.log("Escáner IA vinculado correctamente.");
+                }
+            }, 300); // Esperamos 300ms a que el modal se renderice
         }
         async function saveOrderNumber(originalIndex) {
             const orderNumber = document.getElementById('orderNumberInput').value;
@@ -5061,4 +5227,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
