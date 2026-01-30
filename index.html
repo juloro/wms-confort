@@ -1589,6 +1589,101 @@
                 document.getElementById('order-ai-upload').value = '';
             }
         }
+        // --- FUNCIÓN NUEVA ORDEN (CON BOTÓN AMARILLO) ---
+        function showAddOrderModal() {
+            console.log("🚀 ABRIR MODAL: NUEVA ORDEN + IA"); 
+
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Listas desplegables
+            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
+            const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
+            const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
+
+            const modalHTML = `
+            <div class="modal fade" id="addOrderModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title"><span class="material-icons align-middle me-2">add_shopping_cart</span>Nueva Orden</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            
+                            <div class="p-3 mb-4 bg-light border rounded text-center">
+                                <label class="fw-bold text-muted small mb-2">AUTOCOMPLETADO INTELIGENTE</label>
+                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm py-2" data-action="scan-order-ai">
+                                    <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR COMPROBANTE CON IA
+                                </button>
+                                <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
+                                <small class="text-muted d-block mt-2">Sube foto de factura, remito o etiqueta</small>
+                            </div>
+                            <hr>
+
+                            <form id="addOrderForm">
+                                <div class="row g-2">
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">Fecha</label>
+                                        <input type="date" class="form-control" id="addOrderDate" value="${today}" required>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">ID Ref / Venta</label>
+                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="#12345" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Producto</label>
+                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Buscar..." required>
+                                    <datalist id="productsList">${productOptions}</datalist>
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">ID SKU</label>
+                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático">
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label fw-bold">Cantidad</label>
+                                        <input type="number" class="form-control" id="addOrderQty" value="1" min="1" required>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Canal</label>
+                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel">
+                                    <datalist id="channelOptionsAdd">
+                                        <option value="RETIRO LOCAL"><option value="MOSTRADOR">
+                                        ${channelOptions}
+                                    </datalist>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Cliente</label>
+                                    <input type="text" class="form-control" id="addOrderCustomer">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer justify-content-between">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary px-4" data-action="save-new-order">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            
+            createAndShowModal('addOrderModal', modalHTML);
+
+            // Vinculación segura
+            setTimeout(() => {
+                const aiInput = document.getElementById('order-ai-upload');
+                if(aiInput) {
+                    aiInput.onchange = null;
+                    aiInput.onchange = handleOrderAIUpload;
+                    console.log("✅ IA Vinculada");
+                }
+            }, 300);
+        }
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -4334,103 +4429,7 @@
             } catch (err) { handleApiError(err); }  
             finally { showLoading(false); }
         }
-        function showAddOrderModal() {
-            console.log("Abriendo Modal Nueva Orden con IA..."); 
-
-            const today = new Date().toISOString().split('T')[0];
-            
-            // Generar opciones para las listas
-            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
-            const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
-            const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
-
-            const modalHTML = `
-            <div class="modal fade" id="addOrderModal" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 shadow">
-                        <div class="modal-header bg-primary text-white">
-                            <h5 class="modal-title"><span class="material-icons align-middle me-2">add_shopping_cart</span>Nueva Orden</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            
-                            <div class="p-3 mb-4 bg-light border rounded text-center">
-                                <label class="fw-bold text-muted small mb-2">AUTOCOMPLETADO INTELIGENTE</label>
-                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm py-2" data-action="scan-order-ai">
-                                    <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR COMPROBANTE CON IA
-                                </button>
-                                <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
-                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube foto de la etiqueta, factura o pedido.</small>
-                            </div>
-                            <hr>
-
-                            <form id="addOrderForm">
-                                <div class="row g-2">
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">Fecha</label>
-                                        <input type="date" class="form-control" id="addOrderDate" value="${today}" required>
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">ID Venta / Ref</label>
-                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="#12345" required>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Producto</label>
-                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Escribe para buscar..." required>
-                                    <datalist id="productsList">
-                                        ${productOptions}
-                                    </datalist>
-                                </div>
-
-                                <div class="row g-2">
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">ID Prod (SKU)</label>
-                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático">
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">Cantidad</label>
-                                        <input type="number" class="form-control" id="addOrderQty" value="1" min="1" required>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Canal de Venta</label>
-                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel" placeholder="Selecciona o escribe...">
-                                    <datalist id="channelOptionsAdd">
-                                        <option value="RETIRO LOCAL">
-                                        <option value="MOSTRADOR">
-                                        ${channelOptions}
-                                    </datalist>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Cliente</label>
-                                    <input type="text" class="form-control" id="addOrderCustomer" placeholder="Nombre completo">
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer justify-content-between">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary px-4" data-action="save-new-order">Guardar Orden</button>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-            
-            createAndShowModal('addOrderModal', modalHTML);
-
-            // Vinculación segura
-            setTimeout(() => {
-                const aiInput = document.getElementById('order-ai-upload');
-                if(aiInput) {
-                    aiInput.onchange = null; // Limpiar anteriores
-                    aiInput.onchange = handleOrderAIUpload; // Asignar nuevo
-                    console.log("Escáner IA vinculado correctamente.");
-                }
-            }, 300); 
-        }
+        
         async function saveOrderNumber(originalIndex) {
             const orderNumber = document.getElementById('orderNumberInput').value;
             if (!orderNumber || orderNumber.trim() === '') {
@@ -4456,104 +4455,7 @@
                 showLoading(false);
             }
         }
-        function showAddOrderModal() {
-            console.log("Abriendo Modal Nueva Orden con IA..."); 
-
-            const today = new Date().toISOString().split('T')[0];
-            
-            // Generar opciones para las listas
-            const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
-            const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
-            const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
-
-            const modalHTML = `
-            <div class="modal fade" id="addOrderModal" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 shadow">
-                        <div class="modal-header bg-primary text-white">
-                            <h5 class="modal-title"><span class="material-icons align-middle me-2">add_shopping_cart</span>Nueva Orden</h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body">
-                            
-                            <div class="p-3 mb-4 bg-light border rounded text-center">
-                                <label class="fw-bold text-muted small mb-2">AUTOCOMPLETADO INTELIGENTE</label>
-                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm py-2" data-action="scan-order-ai">
-                                    <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR COMPROBANTE CON IA
-                                </button>
-                                <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
-                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube foto de la etiqueta, factura o pedido.</small>
-                            </div>
-                            <hr>
-
-                            <form id="addOrderForm">
-                                <div class="row g-2">
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">Fecha</label>
-                                        <input type="date" class="form-control" id="addOrderDate" value="${today}" required>
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">ID Venta / Ref</label>
-                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="#12345" required>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Producto</label>
-                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Escribe para buscar..." required>
-                                    <datalist id="productsList">
-                                        ${productOptions}
-                                    </datalist>
-                                </div>
-
-                                <div class="row g-2">
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">ID Prod (SKU)</label>
-                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Automático">
-                                    </div>
-                                    <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">Cantidad</label>
-                                        <input type="number" class="form-control" id="addOrderQty" value="1" min="1" required>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Canal de Venta</label>
-                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel" placeholder="Selecciona o escribe...">
-                                    <datalist id="channelOptionsAdd">
-                                        <option value="RETIRO LOCAL">
-                                        <option value="MOSTRADOR">
-                                        ${channelOptions}
-                                    </datalist>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Cliente</label>
-                                    <input type="text" class="form-control" id="addOrderCustomer" placeholder="Nombre completo">
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer justify-content-between">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary px-4" data-action="save-new-order">Guardar Orden</button>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-            
-            createAndShowModal('addOrderModal', modalHTML);
-
-            // Vinculación del evento Change (Vital para que funcione la subida)
-            setTimeout(() => {
-                const aiInput = document.getElementById('order-ai-upload');
-                if(aiInput) {
-                    // Quitamos listeners previos por seguridad y ponemos el nuevo
-                    aiInput.onchange = null;
-                    aiInput.onchange = handleOrderAIUpload;
-                    console.log("Escáner IA vinculado correctamente.");
-                }
-            }, 300); 
-        }
+        
         async function saveOrderChanges() {
             const btn = document.querySelector('[data-action="save-order-changes"]');
             const index = parseInt(btn.dataset.orderIndex, 10);
@@ -5255,6 +5157,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
