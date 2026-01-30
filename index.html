@@ -4334,12 +4334,17 @@
             finally { showLoading(false); }
         }
         function showAddOrderModal() {
-            // Obtenemos fecha actual para pre-llenar
+            console.log("Abriendo Modal Nueva Orden..."); // Diagnóstico en consola
+
+            // Fecha de hoy por defecto
             const today = new Date().toISOString().split('T')[0];
             
-            // Opciones para el select de Canales (basado en lo que ya existe)
+            // Opciones de canales
             const uniqueChannels = [...new Set((fullData.ordenes || []).map(o => o[5]).filter(Boolean))];
             const channelOptions = uniqueChannels.map(c => `<option value="${sanitizeHTML(c)}">`).join('');
+            
+            // Opciones de productos para el datalist
+            const productOptions = (fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('');
 
             const modalHTML = `
             <div class="modal fade" id="addOrderModal" tabindex="-1">
@@ -4351,14 +4356,14 @@
                         </div>
                         <div class="modal-body">
                             
-                            <div class="mb-4 text-center">
-                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm" data-action="scan-order-ai">
-                                    <span class="material-icons align-middle me-2">document_scanner</span> Escanear Comprobante con IA
+                            <div class="p-3 mb-3 bg-light border rounded text-center">
+                                <label class="form-label text-muted small fw-bold mb-2">OPCIÓN RÁPIDA</label>
+                                <button type="button" class="btn btn-warning w-100 fw-bold shadow-sm py-2" data-action="scan-order-ai">
+                                    <span class="material-icons align-middle me-2">document_scanner</span> ESCANEAR CON IA
                                 </button>
                                 <input type="file" id="order-ai-upload" accept="image/*" style="display:none">
-                                <small class="text-muted d-block mt-1">Sube una foto de la etiqueta, factura o remito</small>
+                                <small class="text-muted d-block mt-2" style="font-size:0.8rem">Sube foto de remito, etiqueta o factura</small>
                             </div>
-
                             <hr>
 
                             <form id="addOrderForm">
@@ -4369,22 +4374,22 @@
                                     </div>
                                     <div class="col-6 mb-3">
                                         <label class="form-label fw-bold">ID Venta / Ref</label>
-                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="Ej: #12345" required>
+                                        <input type="text" class="form-control" id="addOrderVentaID" placeholder="#12345" required>
                                     </div>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Producto</label>
-                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Escribe para buscar..." required>
+                                    <input class="form-control" list="productsList" id="addOrderProduct" placeholder="Buscar producto..." required>
                                     <datalist id="productsList">
-                                        ${(fullData.productos || []).map(p => `<option value="${sanitizeHTML(p[1])}">`).join('')}
+                                        ${productOptions}
                                     </datalist>
                                 </div>
 
                                 <div class="row g-2">
                                     <div class="col-6 mb-3">
-                                        <label class="form-label fw-bold">ID Producto (SKU)</label>
-                                        <input type="text" class="form-control" id="addOrderIdProd" placeholder="Opcional">
+                                        <label class="form-label fw-bold">ID Prod (SKU)</label>
+                                        <input type="text" class="form-control" id="addOrderIdProd">
                                     </div>
                                     <div class="col-6 mb-3">
                                         <label class="form-label fw-bold">Cantidad</label>
@@ -4394,7 +4399,7 @@
 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Canal de Venta</label>
-                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel" placeholder="Seleccionar o escribir...">
+                                    <input class="form-control" list="channelOptionsAdd" id="addOrderChannel">
                                     <datalist id="channelOptionsAdd">
                                         <option value="RETIRO LOCAL">
                                         <option value="MOSTRADOR">
@@ -4403,14 +4408,14 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Nombre Cliente</label>
-                                    <input type="text" class="form-control" id="addOrderCustomer" placeholder="Nombre completo">
+                                    <label class="form-label fw-bold">Cliente</label>
+                                    <input type="text" class="form-control" id="addOrderCustomer">
                                 </div>
                             </form>
                         </div>
-                        <div class="modal-footer">
+                        <div class="modal-footer justify-content-between">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                            <button type="button" class="btn btn-primary" data-action="save-new-order">Guardar Orden</button>
+                            <button type="button" class="btn btn-primary px-4" data-action="save-new-order">Guardar Orden</button>
                         </div>
                     </div>
                 </div>
@@ -4418,13 +4423,19 @@
             
             createAndShowModal('addOrderModal', modalHTML);
 
-            // Vinculamos el evento CHANGE del input de archivo aquí mismo para asegurar que existe
+            // Vinculación segura del evento de cambio de archivo
             setTimeout(() => {
                 const aiInput = document.getElementById('order-ai-upload');
                 if(aiInput) {
+                    // Remover listener anterior para evitar duplicados
+                    aiInput.removeEventListener('change', handleOrderAIUpload);
+                    // Agregar nuevo listener
                     aiInput.addEventListener('change', handleOrderAIUpload);
+                    console.log("Input de IA vinculado correctamente");
+                } else {
+                    console.error("No se encontró el input order-ai-upload");
                 }
-            }, 100);
+            }, 300);
         }
         async function saveOrderNumber(originalIndex) {
             const orderNumber = document.getElementById('orderNumberInput').value;
@@ -5213,5 +5224,6 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
