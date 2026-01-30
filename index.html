@@ -788,7 +788,7 @@
             const container = DOM.views.productos;
             if (!container) return;
 
-            // 1. Cabecera Fija con Buscador
+            // 1. Cabecera y Buscador
             let html = `
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h2><span class="material-icons align-middle me-2">inventory_2</span>Productos</h2>
@@ -799,16 +799,15 @@
                     <div class="card-body">
                         <div class="input-group">
                             <span class="input-group-text bg-white"><span class="material-icons">search</span></span>
-                            <input type="text" id="product-search-input" class="form-control" placeholder="Buscar por ID o Nombre (En base completa)...">
+                            <input type="text" id="product-search-input" class="form-control" placeholder="Buscar ID o Nombre en toda la base...">
                         </div>
                     </div>
                 </div>`;
 
-            // 2. Procesamiento de Datos (Filtrado)
+            // 2. Lógica de Filtrado
             let products = fullData.productos || [];
-            
-            // Si hay búsqueda, filtramos sobre TODA la base (los 10.000)
             const searchTerm = (document.getElementById('product-search-input')?.value || '').toLowerCase();
+            
             if (searchTerm) {
                 products = products.filter(p => 
                     (p[0] && String(p[0]).toLowerCase().includes(searchTerm)) || 
@@ -816,8 +815,10 @@
                 );
             }
 
-            // 3. Renderizado Inteligente (Solo mostramos un lote para no colgar el navegador)
-            const visibleProducts = products.slice(0, productsVisibleLimit);
+            // 3. Paginación (Usamos la variable global existente)
+            // Si productsVisibleLimit no está definido, usamos 50 por defecto
+            const limit = (typeof productsVisibleLimit !== 'undefined') ? productsVisibleLimit : 50;
+            const visibleProducts = products.slice(0, limit);
             
             if (visibleProducts.length === 0) {
                 html += `<div class="alert alert-info text-center">No se encontraron productos.</div>`;
@@ -829,28 +830,54 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Descripción</th>
-                                <th>Categoría/Info</th>
+                                <th class="text-center">Stock Total</th>
+                                <th class="text-center" style="width: 100px;">Ver Ubic.</th>
                             </tr>
                         </thead>
                         <tbody>`;
                 
                 visibleProducts.forEach(p => {
+                    // Limpieza del ID para buscar en los mapas de stock
+                    const idLimpio = String(p[0]).trim().toUpperCase();
+                    
+                    // Obtener Stock Total (Calculado previamente en processAndCalculateStock)
+                    let stock = 0;
+                    if (fullData.stockTotal && fullData.stockTotal.has(idLimpio)) {
+                        stock = fullData.stockTotal.get(idLimpio);
+                    }
+                    
+                    // Definir color del Badge según cantidad
+                    let badgeClass = 'bg-secondary'; // Gris si es 0
+                    if (stock > 0) badgeClass = 'bg-success'; // Verde si hay
+                    else if (stock < 0) badgeClass = 'bg-danger'; // Rojo si es negativo
+
                     html += `
                         <tr>
                             <td class="fw-bold text-primary">${sanitizeHTML(p[0])}</td>
                             <td>${sanitizeHTML(p[1])}</td>
-                            <td><span class="badge bg-light text-dark border">${sanitizeHTML(p[2] || '-')}</span></td>
+                            <td class="text-center">
+                                <span class="badge ${badgeClass} fs-6" style="min-width: 45px;">${stock}</span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-info" 
+                                    type="button"
+                                    data-action="view-stock-locations" 
+                                    data-id="${sanitizeHTML(idLimpio)}"
+                                    title="Ver detalle de ubicaciones">
+                                    <span class="material-icons align-middle">search</span>
+                                </button>
+                            </td>
                         </tr>`;
                 });
 
                 html += `</tbody></table></div>`;
                 
-                // Botón "Cargar Más" si hay más datos ocultos
-                if (products.length > productsVisibleLimit) {
+                // Botón Cargar Más
+                if (products.length > limit) {
                     html += `
                     <div class="text-center mt-3">
                         <small class="text-muted d-block mb-2">Mostrando ${visibleProducts.length} de ${products.length}</small>
-                        <button class="btn btn-outline-primary" onclick="showMoreProducts()">
+                        <button class="btn btn-outline-primary" data-action="load-more-products">
                             <span class="material-icons align-middle">expand_more</span> Cargar más resultados
                         </button>
                     </div>`;
@@ -859,35 +886,19 @@
 
             container.innerHTML = html;
             
-            // Restaurar foco y valor del buscador si existía
+            // Mantener foco en buscador
             const input = document.getElementById('product-search-input');
             if(input) {
                 input.value = searchTerm;
                 input.focus();
-                // Evento para búsqueda en tiempo real
-                input.onkeyup = () => {
-                    // Al buscar, reseteamos el límite para ver los primeros resultados de la búsqueda
-                    // Pero NO repintamos todo con renderProductsView() directo porque perderíamos el foco.
-                    // Mejor estrategia: Esperar Enter o usar debounce. Por simplicidad:
-                    if(event.key === 'Enter') { 
-                        productsVisibleLimit = 50; 
+                input.onkeyup = (e) => {
+                    if(e.key === 'Enter') { 
+                        if(typeof productsVisibleLimit !== 'undefined') productsVisibleLimit = 50;
                         renderProductsView(); 
                     }
                 };
-                // Búsqueda al escribir (con debounce manual simple)
-                input.oninput = () => {
-                    // Solo renderizamos si cambia significativamente o paramos de escribir
-                    // Para evitar complejidad, dejamos que el usuario presione Enter o usemos un timeout
-                    clearTimeout(window.searchTimeout);
-                    window.searchTimeout = setTimeout(() => {
-                        productsVisibleLimit = 50;
-                        renderProductsView();
-                        document.getElementById('product-search-input').focus();
-                    }, 300);
-                };
             }
         }
-
         // Función global para el botón "Cargar Más"
         window.showMoreProducts = () => {
             productsVisibleLimit += 100; // Cargar 100 más
@@ -3739,6 +3750,101 @@
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
+            // --- INICIO BLOQUE LUPA DE STOCK ---
+            if (action === 'view-stock-locations') {
+                const productId = target.dataset.id;
+                
+                // 1. Buscar Nombre del Producto (Fallback seguro)
+                let productName = "Producto Desconocido";
+                if (typeof globalProductMap !== 'undefined' && globalProductMap.has(productId)) {
+                    productName = globalProductMap.get(productId);
+                } else {
+                    // Si no está el mapa, buscamos en el array (más lento pero seguro)
+                    const prodFound = fullData.productos.find(p => String(p[0]).trim().toUpperCase() === productId);
+                    if(prodFound) productName = prodFound[1];
+                }
+
+                // 2. Construir lista de ubicaciones
+                let locationsHtml = '';
+                let totalInLocs = 0;
+                let foundAny = false;
+
+                // Verificamos si existe el mapa de stock por ubicación
+                if (fullData.stockPorUbicacion && fullData.stockPorUbicacion.has(productId)) {
+                    const locsMap = fullData.stockPorUbicacion.get(productId);
+                    
+                    if (locsMap.size > 0) {
+                        locationsHtml = `<div class="list-group list-group-flush">`;
+                        locsMap.forEach((qty, loc) => {
+                            if (qty !== 0) { // Solo mostramos si hay cantidad distinta de 0
+                                foundAny = true;
+                                totalInLocs += qty;
+                                locationsHtml += `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div class="d-flex align-items-center">
+                                            <span class="material-icons text-muted me-2">place</span>
+                                            <span class="fw-bold text-dark">${loc}</span>
+                                        </div>
+                                        <span class="badge ${qty > 0 ? 'bg-primary' : 'bg-danger'} rounded-pill">${qty}</span>
+                                    </div>`;
+                            }
+                        });
+                        locationsHtml += `</div>`;
+                    }
+                }
+
+                // Mensaje si no se encuentra en ninguna ubicación física
+                if (!foundAny) {
+                    locationsHtml = `
+                        <div class="text-center py-4 text-muted">
+                            <span class="material-icons fs-1 opacity-25">where_to_vote</span>
+                            <p class="mb-0">No se encontraron existencias físicas asignadas.</p>
+                        </div>`;
+                }
+
+                // 3. Crear HTML del Modal
+                const modalHTML = `
+                <div class="modal fade" id="stockModal" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title"><span class="material-icons align-middle me-2">visibility</span>Detalle de Stock</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-0">
+                                <div class="p-3 bg-light border-bottom">
+                                    <small class="text-uppercase text-muted fw-bold" style="font-size:0.75rem">Producto</small>
+                                    <div class="fw-bold text-dark fs-5">${sanitizeHTML(productName)}</div>
+                                    <div class="text-muted small">ID: ${productId}</div>
+                                </div>
+                                <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-secondary">Stock Consolidado</span>
+                                    <span class="badge ${totalInLocs > 0 ? 'bg-success' : 'bg-secondary'} fs-5">${totalInLocs}</span>
+                                </div>
+                                <div class="bg-white" style="max-height: 300px; overflow-y: auto;">
+                                    ${locationsHtml}
+                                </div>
+                            </div>
+                            <div class="modal-footer bg-light">
+                                <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+                createAndShowModal('stockModal', modalHTML);
+                return; 
+            }
+
+            // Acción extra para el botón "Cargar más"
+            if (action === 'load-more-products') {
+                if(typeof productsVisibleLimit !== 'undefined') {
+                    productsVisibleLimit += 50;
+                    renderProductsView();
+                }
+                return;
+            }
+            // --- FIN BLOQUE LUPA ---
             const data = target.dataset;
             
             const actionMap = {
@@ -4955,3 +5061,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
