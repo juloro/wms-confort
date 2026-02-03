@@ -1956,6 +1956,69 @@
             createAndShowModal(CONSTANTS.IDS.NEW_MOVEMENT_MODAL, modalHTML);
             addNewMovementLine();
         }
+        // --- FUNCIÓN PARA GUARDAR CONTROL Y ACTUALIZAR SEMÁFORO ---
+        async function saveNewControl() {
+            const form = document.getElementById('controlForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // 1. OBTENER DATOS
+            const type = document.getElementById('controlType').value;
+            // IMPORTANTE: .toUpperCase() es vital para que coincida con el mapa (ej: 'a1' -> 'A1')
+            const ref = document.getElementById('controlReference').value.trim().toUpperCase();
+            const user = document.getElementById('controlUser').value.trim().toUpperCase();
+            const status = document.getElementById('controlStatus').value;
+            const comments = document.getElementById('controlComments').value;
+            const today = new Date().toISOString().split('T')[0];
+
+            // 2. ACTUALIZAR BASE DE DATOS LOCAL
+            const newRow = [today, type, ref, user, status, comments];
+            if (!fullData.controles) fullData.controles = [];
+            fullData.controles.push(newRow);
+
+            // 3. ACTUALIZAR EL SEMÁFORO EN MEMORIA (MAGIA DEL MAPA)
+            // Esto le dice al mapa: "Esta ubicación se controló HOY", para que la pinte verde ya mismo.
+            if (type === 'UBICACION') {
+                // Actualizamos el mapa global de últimas fechas
+                if (typeof lastControls !== 'undefined') {
+                    lastControls.set(ref, today);
+                }
+            }
+
+            // 4. REFRESCAR VISTAS
+            renderControlsView();   // Muestra el nuevo renglón en la tabla
+            renderLocationsView();  // Vuelve a pintar el mapa (ahora saldrá verde)
+
+            // 5. CERRAR EL MODAL CORRECTAMENTE
+            const modalEl = document.getElementById('controlModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) {
+                modalInstance.hide();
+            } else {
+                // Fallback por si se perdió la instancia
+                const btnClose = modalEl.querySelector('.btn-close');
+                if(btnClose) btnClose.click();
+            }
+
+            // 6. GUARDAR EN GOOGLE SHEETS (ASYNC)
+            showLoading(true, 'Guardando control...');
+            try {
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: 'CONTROLES!A:F',
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [newRow] }
+                });
+                showNotification('Control registrado y mapa actualizado', 'success');
+            } catch (err) {
+                console.error(err);
+                showNotification('Guardado local (Error de red)', 'warning');
+            } finally {
+                showLoading(false);
+            }
+        }
         async function saveNewMovement() {
             const remito = document.getElementById('movementRef').value.trim();
             const origen = document.getElementById('movementOrigin').value.trim();
@@ -3750,6 +3813,10 @@
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
+            if (action === 'save-control') {
+                saveNewControl(); // Llamamos a la función dedicada (que crearemos en el Paso 2)
+                return;
+            }
             // --- INICIO BLOQUE LUPA DE STOCK ---
             if (action === 'view-stock-locations') {
                 const productId = target.dataset.id;
@@ -5061,3 +5128,4 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
