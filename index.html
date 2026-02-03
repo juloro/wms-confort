@@ -2019,21 +2019,37 @@
                 showLoading(false);
             }
         }
-        // --- FUNCIÓN GUARDAR MOVIMIENTO (Y GENERAR REMITO AUTOMÁTICO) ---
+        // --- FUNCIÓN RECUPERADA: GUARDAR MOVIMIENTO Y REMITO ---
         async function saveNewMovement() {
+            console.log("Intentando guardar movimiento..."); // Para verificar en consola
+
             const form = document.getElementById('movementForm');
+            if (!form) {
+                console.error("Error: No se encuentra el formulario movementForm");
+                return;
+            }
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
 
-            // 1. OBTENER DATOS DEL FORMULARIO
+            // 1. OBTENER DATOS (Con validación básica)
+            // Usamos .value || '' para evitar errores si algún campo es null
             const type = document.getElementById('movementType').value;
-            const remito = document.getElementById('movementRef').value.trim().toUpperCase() || "S/N";
-            const productId = document.getElementById('movementProduct').value.trim().toUpperCase();
-            const qty = parseInt(document.getElementById('movementQty').value) || 0;
-            const user = document.getElementById('movementUser').value.trim().toUpperCase();
-            const comments = document.getElementById('movementComments').value.trim();
+            const remitoVal = document.getElementById('movementRef').value;
+            const remito = remitoVal ? remitoVal.trim().toUpperCase() : "S/N";
+            
+            const prodVal = document.getElementById('movementProduct').value;
+            const productId = prodVal ? prodVal.trim().toUpperCase() : "";
+            
+            const qtyVal = document.getElementById('movementQty').value;
+            const qty = parseInt(qtyVal) || 0;
+            
+            const userVal = document.getElementById('movementUser').value;
+            const user = userVal ? userVal.trim().toUpperCase() : "";
+            
+            const comments = document.getElementById('movementComments').value || "";
+            
             const today = new Date().toISOString().split('T')[0];
 
             if (qty <= 0) {
@@ -2041,72 +2057,74 @@
                 return;
             }
 
-            // 2. PREPARAR DATOS PARA 'MOVIMIENTOS'
-            // Estructura: [Fecha, Tipo, Ref, ID_Prod, Cantidad, Usuario, Comentarios]
-            const newMovementRow = [today, type, remito, productId, qty, user, comments];
+            // 2. PREPARAR FILAS DE DATOS
+            // Fila para MOVIMIENTOS: [Fecha, Tipo, Ref, Producto, Cantidad, Usuario, Notas]
+            const rowMovimiento = [today, type, remito, productId, qty, user, comments];
 
-            // 3. PREPARAR DATOS PARA 'REMITOS' (Espejo)
-            // Estructura usual: [Fecha, Tipo, Nro_Remito, Estado, Usuario, Detalle/Items]
-            // Creamos un detalle simple en formato texto o JSON para que se vea en el módulo Remitos
-            const remitoDetail = `Manual: ${productId} (x${qty})`; 
-            const newRemitoRow = [today, type, remito, 'COMPLETADO', user, remitoDetail];
+            // Fila para REMITOS: [Fecha, Tipo, NroRemito, Estado, Usuario, Detalle]
+            const detalleRemito = `Generado desde Movimientos: ${productId} (x${qty})`;
+            const rowRemito = [today, type, remito, 'COMPLETADO', user, detalleRemito];
 
-            // 4. ACTUALIZAR MEMORIA LOCAL (Para que se vea al instante sin recargar)
+            // 3. ACTUALIZAR LOCALMENTE (Para visualización inmediata)
             if (!fullData.movimientos) fullData.movimientos = [];
-            fullData.movimientos.push(newMovementRow);
+            fullData.movimientos.push(rowMovimiento);
 
             if (!fullData.remitos) fullData.remitos = [];
-            fullData.remitos.push(newRemitoRow);
+            fullData.remitos.push(rowRemito);
 
-            // 5. ACTUALIZAR STOCK EN MEMORIA
-            // Esto es importante para que el stock cambie al instante en la pantalla Productos
+            // Actualizar Stock en Memoria
             if (fullData.stockTotal) {
                 const currentStock = fullData.stockTotal.get(productId) || 0;
                 const newStock = type === 'INGRESO' ? currentStock + qty : currentStock - qty;
                 fullData.stockTotal.set(productId, newStock);
             }
 
-            // 6. CERRAR MODAL
-            const modalEl = document.getElementById(CONSTANTS.IDS.NEW_MOVEMENT_MODAL);
-            if (modalEl) {
-                const instance = bootstrap.Modal.getInstance(modalEl);
+            // 4. CERRAR MODAL (Método Genérico Seguro)
+            // Buscamos cualquier modal abierto para cerrarlo, así no dependemos del ID exacto
+            const openModal = document.querySelector('.modal.show');
+            if (openModal) {
+                const instance = bootstrap.Modal.getInstance(openModal);
                 if (instance) instance.hide();
                 else {
-                    const btn = modalEl.querySelector('.btn-close');
-                    if (btn) btn.click();
+                    const btnClose = openModal.querySelector('.btn-close');
+                    if (btnClose) btnClose.click();
                 }
             }
 
-            // 7. ACTUALIZAR VISTAS
-            renderMovementsView(); // Tabla Movimientos
-            renderRemitosView();   // Tabla Remitos (Nuevo)
-            renderProductsView();  // Tabla Productos (Stock actualizado)
+            // 5. REFRESCAR TODAS LAS VISTAS
+            renderMovementsView();
+            if (typeof renderRemitosView === 'function') renderRemitosView();
+            if (typeof renderProductsView === 'function') renderProductsView();
 
-            // 8. GUARDAR EN GOOGLE SHEETS (DOBLE LLAMADA)
-            showLoading(true, 'Guardando Movimiento y Remito...');
+            // 6. GUARDAR EN GOOGLE SHEETS
+            showLoading(true, 'Guardando en la nube...');
             
             try {
-                // A) Guardar en hoja MOVIMIENTOS
+                // A) Guardar Movimiento (CRÍTICO)
                 await gapi.client.sheets.spreadsheets.values.append({
                     spreadsheetId: CONFIG.SPREADSHEET_ID,
                     range: 'MOVIMIENTOS!A:G',
                     valueInputOption: 'USER_ENTERED',
-                    resource: { values: [newMovementRow] }
+                    resource: { values: [rowMovimiento] }
                 });
 
-                // B) Guardar en hoja REMITOS
-                await gapi.client.sheets.spreadsheets.values.append({
-                    spreadsheetId: CONFIG.SPREADSHEET_ID,
-                    range: 'REMITOS!A:F', // Asumiendo columnas A hasta F
-                    valueInputOption: 'USER_ENTERED',
-                    resource: { values: [newRemitoRow] }
-                });
+                // B) Guardar Remito (OPCIONAL - Si falla no rompe el flujo)
+                try {
+                    await gapi.client.sheets.spreadsheets.values.append({
+                        spreadsheetId: CONFIG.SPREADSHEET_ID,
+                        range: 'REMITOS!A:F', 
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values: [rowRemito] }
+                    });
+                } catch (e) {
+                    console.warn("No se pudo guardar copia en Remitos (quizás la hoja no existe):", e);
+                }
 
-                showNotification('✅ Movimiento y Remito registrados correctamente', 'success');
+                showNotification('✅ Movimiento registrado correctamente', 'success');
 
             } catch (error) {
                 console.error("Error al guardar en Sheets:", error);
-                showNotification('Guardado localmente. Error de sincronización.', 'warning');
+                showNotification('Guardado localmente. Error de conexión.', 'warning');
             } finally {
                 showLoading(false);
             }
@@ -3866,6 +3884,9 @@
             if (action === 'save-control') {
                 saveNewControl(); // Llamamos a la función dedicada (que crearemos en el Paso 2)
                 return;
+            if (action === 'save-new-movement') {
+                saveNewMovement();
+                return;
             }
             // --- INICIO BLOQUE LUPA DE STOCK ---
             if (action === 'view-stock-locations') {
@@ -5178,5 +5199,6 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
