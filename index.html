@@ -2019,47 +2019,97 @@
                 showLoading(false);
             }
         }
+        // --- FUNCIÓN GUARDAR MOVIMIENTO (Y GENERAR REMITO AUTOMÁTICO) ---
         async function saveNewMovement() {
-            const remito = document.getElementById('movementRef').value.trim();
-            const origen = document.getElementById('movementOrigin').value.trim();
-            const tipo = document.getElementById('movementType').value;
-            const motivo = document.getElementById('movementReason').value;
-            const headerLocation = document.getElementById('movementLocation')?.value.trim().toUpperCase();
-            if (!motivo || !origen) return alert('Debe completar los campos Motivo y Origen/Destino.');
-            const lines = document.querySelectorAll('.movement-product-line');
-            const movementRows = [];
-            const entradasSalidasRows = [];
-            const timestamp = getTimestamp();
-            let hasErrors = false;
-            for (const line of lines) {
-                const id = line.querySelector('.product-id-input').value;
-                const qty = parseInt(line.querySelector('.product-qty-input').value, 10);
-                if (!id || isNaN(qty) || qty <= 0) continue;
-                const product = fullData.productos.find(p => p[0] === id);
-                if (!product) { alert(`Producto con ID ${id} no encontrado.`); hasErrors = true; break; }
-                let location = headerLocation;
-                if (tipo === CONSTANTS.MOVEMENT_TYPE.EGRESS) {
-                    const locationInput = line.querySelector('.line-location-input');
-                    location = locationInput.value.trim().toUpperCase();
-                    if(!location) { alert(`Debe especificar una ubicación para el producto ${product[1]}.`); hasErrors = true; break; }
-                    if(!validLocations.has(location)) { alert(`Ubicación "${location}" no válida para el producto ${product[1]}.`); hasErrors = true; break; }
+            const form = document.getElementById('movementForm');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // 1. OBTENER DATOS DEL FORMULARIO
+            const type = document.getElementById('movementType').value;
+            const remito = document.getElementById('movementRef').value.trim().toUpperCase() || "S/N";
+            const productId = document.getElementById('movementProduct').value.trim().toUpperCase();
+            const qty = parseInt(document.getElementById('movementQty').value) || 0;
+            const user = document.getElementById('movementUser').value.trim().toUpperCase();
+            const comments = document.getElementById('movementComments').value.trim();
+            const today = new Date().toISOString().split('T')[0];
+
+            if (qty <= 0) {
+                alert("La cantidad debe ser mayor a 0");
+                return;
+            }
+
+            // 2. PREPARAR DATOS PARA 'MOVIMIENTOS'
+            // Estructura: [Fecha, Tipo, Ref, ID_Prod, Cantidad, Usuario, Comentarios]
+            const newMovementRow = [today, type, remito, productId, qty, user, comments];
+
+            // 3. PREPARAR DATOS PARA 'REMITOS' (Espejo)
+            // Estructura usual: [Fecha, Tipo, Nro_Remito, Estado, Usuario, Detalle/Items]
+            // Creamos un detalle simple en formato texto o JSON para que se vea en el módulo Remitos
+            const remitoDetail = `Manual: ${productId} (x${qty})`; 
+            const newRemitoRow = [today, type, remito, 'COMPLETADO', user, remitoDetail];
+
+            // 4. ACTUALIZAR MEMORIA LOCAL (Para que se vea al instante sin recargar)
+            if (!fullData.movimientos) fullData.movimientos = [];
+            fullData.movimientos.push(newMovementRow);
+
+            if (!fullData.remitos) fullData.remitos = [];
+            fullData.remitos.push(newRemitoRow);
+
+            // 5. ACTUALIZAR STOCK EN MEMORIA
+            // Esto es importante para que el stock cambie al instante en la pantalla Productos
+            if (fullData.stockTotal) {
+                const currentStock = fullData.stockTotal.get(productId) || 0;
+                const newStock = type === 'INGRESO' ? currentStock + qty : currentStock - qty;
+                fullData.stockTotal.set(productId, newStock);
+            }
+
+            // 6. CERRAR MODAL
+            const modalEl = document.getElementById(CONSTANTS.IDS.NEW_MOVEMENT_MODAL);
+            if (modalEl) {
+                const instance = bootstrap.Modal.getInstance(modalEl);
+                if (instance) instance.hide();
+                else {
+                    const btn = modalEl.querySelector('.btn-close');
+                    if (btn) btn.click();
                 }
-                if (!location) { alert('La ubicación no puede estar vacía.'); hasErrors = true; break; }
-                const movementQty = tipo === CONSTANTS.MOVEMENT_TYPE.INGRESS ? qty : -Math.abs(qty);
-                movementRows.push([id, product[1], movementQty, location, tipo, timestamp]);
-                entradasSalidasRows.push([remito, tipo, motivo, origen, timestamp, id, product[1], qty]);
-            };
-            if (hasErrors || movementRows.length === 0) return alert('No hay productos válidos para registrar o se encontraron errores.');
-            activeModals[CONSTANTS.IDS.NEW_MOVEMENT_MODAL]?.hide();
-            showLoading(true, 'Guardando movimiento...');
+            }
+
+            // 7. ACTUALIZAR VISTAS
+            renderMovementsView(); // Tabla Movimientos
+            renderRemitosView();   // Tabla Remitos (Nuevo)
+            renderProductsView();  // Tabla Productos (Stock actualizado)
+
+            // 8. GUARDAR EN GOOGLE SHEETS (DOBLE LLAMADA)
+            showLoading(true, 'Guardando Movimiento y Remito...');
+            
             try {
-                await Promise.all([
-                    appendToSheet(CONSTANTS.RANGES.movimientos, movementRows),
-                    appendToSheet(CONSTANTS.RANGES.entradasSalidas, entradasSalidasRows)
-                ]);
-                await loadInitialData();
-            } catch(err) { handleApiError(err); } 
-            finally { showLoading(false); }
+                // A) Guardar en hoja MOVIMIENTOS
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: 'MOVIMIENTOS!A:G',
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [newMovementRow] }
+                });
+
+                // B) Guardar en hoja REMITOS
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: 'REMITOS!A:F', // Asumiendo columnas A hasta F
+                    valueInputOption: 'USER_ENTERED',
+                    resource: { values: [newRemitoRow] }
+                });
+
+                showNotification('✅ Movimiento y Remito registrados correctamente', 'success');
+
+            } catch (error) {
+                console.error("Error al guardar en Sheets:", error);
+                showNotification('Guardado localmente. Error de sincronización.', 'warning');
+            } finally {
+                showLoading(false);
+            }
         }
         function addNewMovementLine() {
              const lineId = `line-${Date.now()}`;
@@ -5128,4 +5178,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
