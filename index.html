@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WMS Confort v6.0 (Versión Estable con IA)</title>
+    <title>WMS Confort v6.0 (Versión IA)</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -860,22 +859,13 @@
                                 <span class="badge ${badgeClass} fs-6" style="min-width: 45px;">${stock}</span>
                             </td>
                             <td class="text-center">
-                                <div class="btn-group" role="group">
-                                    <button class="btn btn-sm btn-outline-info" 
-                                        type="button"
-                                        data-action="view-stock-locations" 
-                                        data-id="${sanitizeHTML(idLimpio)}"
-                                        title="Ver detalle">
-                                        <span class="material-icons align-middle">visibility</span>
-                                    </button>
-
-                                   <button class="btn btn-sm btn-outline-warning" 
-                                        type="button"
-                                        data-action="edit-product" 
-                                        data-id="${sanitizeHTML(idLimpio)}"  title="Editar EAN">
-                                        <span class="material-icons align-middle">edit</span>
-                                    </button>
-                                </div>
+                                <button class="btn btn-sm btn-outline-info" 
+                                    type="button"
+                                    data-action="view-stock-locations" 
+                                    data-id="${sanitizeHTML(idLimpio)}"
+                                    title="Ver detalle de ubicaciones">
+                                    <span class="material-icons align-middle">search</span>
+                                </button>
                             </td>
                         </tr>`;
                 });
@@ -1523,219 +1513,7 @@
                 .slice(0, 5)
                 .map(item => item.product);
         }
-        // =============================================================
-        // === MÓDULO DE ESCÁNER (CÁMARA REAL) Y EDICIÓN ===
-        // =============================================================
 
-        let html5QrCode = null; // Variable de control
-
-        // 1. FUNCIÓN PARA ABRIR LA VENTANA
-        function showEditProductModal(productId) {
-            console.warn("--- INICIO DIAGNÓSTICO DE BÚSQUEDA ---");
-            
-            // 1. Analizar el ID que viene del botón
-            const rawId = productId;
-            const searchId = String(productId).trim().toUpperCase();
-            
-            console.log(`1. ID Recibido del botón: "${rawId}" (Tipo: ${typeof rawId})`);
-            console.log(`2. ID Limpio para buscar: "${searchId}"`);
-
-            // 2. Verificar que hay datos
-            if (!fullData.productos || fullData.productos.length === 0) {
-                alert("Error Crítico: No hay productos cargados en memoria.");
-                return;
-            }
-
-            // 3. Imprimir los primeros 3 productos de la base para comparar visualmente
-            console.log("3. Muestra de datos en memoria (Primeros 3 filas):");
-            fullData.productos.slice(0, 3).forEach((p, i) => {
-                console.log(`   Fila ${i}: ID="${p[0]}" (Tipo: ${typeof p[0]}) | Nombre="${p[1]}"`);
-            });
-
-            // 4. INTENTO DE BÚSQUEDA AGRESIVA
-            // Comparamos convirtiendo ambos lados a String mayúscula y sin espacios
-            const product = fullData.productos.find((p, index) => {
-                const dbIdRaw = p[0]; // El ID en la base de datos
-                const dbIdClean = String(dbIdRaw).trim().toUpperCase();
-                
-                // Comparación
-                const isMatch = (dbIdClean === searchId);
-                
-                // Si encontramos coincidencia, avisamos en consola
-                if (isMatch) console.log(`   ✅ COINCIDENCIA ENCONTRADA en índice ${index}`);
-                
-                return isMatch;
-            });
-
-            // 5. RESULTADO
-            if (!product) {
-                console.error("❌ FALLÓ LA BÚSQUEDA. Ningún ID de la base coincidió con:", searchId);
-                alert(`Error: El sistema no encuentra el producto ID "${searchId}".\n\nPor favor abre la consola (F12) y envía una captura de los mensajes de "DIAGNÓSTICO".`);
-                return;
-            }
-
-            console.log("✅ Producto recuperado exitosamente:", product[1]);
-
-            // --- CÓDIGO NORMAL DE LA VENTANA ---
-            const currentEAN = product[2] || ""; 
-            const productName = product[1] || "";
-
-            const modalHTML = `
-            <div class="modal fade" id="editProductModal" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 shadow">
-                        <div class="modal-header bg-warning text-dark">
-                            <h5 class="modal-title"><span class="material-icons align-middle me-2">qr_code_scanner</span>Escanear EAN</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="window.stopBarcodeScanner()"></button>
-                        </div>
-                        <div class="modal-body">
-                            
-                            <div class="mb-3 p-2 bg-light rounded border">
-                                <strong>${sanitizeHTML(productName)}</strong>
-                                <div class="small text-muted">ID: ${sanitizeHTML(searchId)}</div>
-                            </div>
-
-                            <div id="reader" class="rounded mb-3 border border-dark bg-black" style="width: 100%; min-height: 250px; display:none;"></div>
-                            
-                            <div class="text-center mb-3" id="cameraControl">
-                                <button type="button" class="btn btn-dark w-100 shadow-sm py-2" onclick="window.startBarcodeScanner()">
-                                    <span class="material-icons align-middle me-2">videocam</span> ACTIVAR CÁMARA
-                                </button>
-                            </div>
-
-                            <form id="editProductForm">
-                                <input type="hidden" id="editProdId" value="${sanitizeHTML(searchId)}">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Código EAN Detectado</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text bg-white"><span class="material-icons">view_week</span></span>
-                                        <input type="text" class="form-control form-control-lg fw-bold text-center" id="editProdEAN" value="${sanitizeHTML(currentEAN)}" placeholder="Escanea o escribe...">
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="window.stopBarcodeScanner()">Cancelar</button>
-                            <button type="button" class="btn btn-success px-4 fw-bold" data-action="save-product-changes">GUARDAR</button>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-
-            createAndShowModal('editProductModal', modalHTML);
-            
-            const modalEl = document.getElementById('editProductModal');
-            if(modalEl) {
-                modalEl.addEventListener('hidden.bs.modal', () => {
-                    if(window.stopBarcodeScanner) window.stopBarcodeScanner();
-                });
-            }
-        }
-        // 2. ACTIVAR CÁMARA (GLOBAL)
-        window.startBarcodeScanner = function() {
-            const readerDiv = document.getElementById('reader');
-            const btnControl = document.getElementById('cameraControl');
-            
-            if(readerDiv) readerDiv.style.display = 'block';
-            if(btnControl) btnControl.style.display = 'none';
-
-            if (typeof Html5Qrcode === 'undefined') {
-                alert("Error: Librería Html5Qrcode no cargada. Revisa el Paso 1.");
-                return;
-            }
-
-            // Si ya existe una instancia, la limpiamos primero
-            if (html5QrCode) { 
-                try { html5QrCode.clear(); } catch(e){}
-            }
-
-            html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 150 } }; 
-            
-            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                // ÉXITO
-                console.log(`Código: ${decodedText}`);
-                const input = document.getElementById('editProdEAN');
-                if(input) {
-                    input.value = decodedText;
-                    // Efecto verde
-                    input.style.backgroundColor = '#d1e7dd';
-                    setTimeout(() => input.style.backgroundColor = '', 500);
-                }
-                // Beep (opcional)
-                // const audio = new Audio('ruta/al/beep.mp3'); audio.play().catch(e=>{});
-                
-                window.stopBarcodeScanner(); // Apagar al leer
-                
-            }, (error) => {
-                // Escaneando... (no hacer nada)
-            })
-            .catch(err => {
-                console.error(err);
-                alert("No se pudo iniciar la cámara. Verifica permisos y HTTPS.");
-                window.stopBarcodeScanner();
-            });
-        };
-
-        // 3. APAGAR CÁMARA (GLOBAL)
-        window.stopBarcodeScanner = function() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(() => {
-                    html5QrCode.clear();
-                    html5QrCode = null;
-                }).catch(err => console.log("Cámara ya estaba detenida"));
-            }
-            const readerDiv = document.getElementById('reader');
-            const btnControl = document.getElementById('cameraControl');
-            if(readerDiv) readerDiv.style.display = 'none';
-            if(btnControl) btnControl.style.display = 'block';
-        };
-
-        // 4. GUARDAR CAMBIOS
-        async function saveProductChanges() {
-            const productId = document.getElementById('editProdId').value;
-            const newEAN = document.getElementById('editProdEAN').value.trim();
-
-            if (!productId) return;
-            showLoading(true, "Guardando EAN...");
-
-            try {
-                // Buscar índice
-                const rowIndex = fullData.productos.findIndex(p => String(p[0]).trim().toUpperCase() === productId);
-                if (rowIndex === -1) throw new Error("Producto no encontrado.");
-
-                // Fila en Excel (Index + 2)
-                const sheetRow = rowIndex + 2; 
-
-                // Guardar en Columna C (EAN)
-                await gapi.client.sheets.spreadsheets.values.update({
-                    spreadsheetId: CONFIG.SPREADSHEET_ID,
-                    range: `PRODUCTOS!C${sheetRow}`, 
-                    valueInputOption: 'USER_ENTERED',
-                    resource: { values: [[newEAN]] }
-                });
-
-                // Actualizar memoria local
-                if(fullData.productos[rowIndex]) {
-                    fullData.productos[rowIndex][2] = newEAN;
-                }
-
-                // Cerrar modal
-                const modalEl = document.getElementById('editProductModal');
-                const instance = bootstrap.Modal.getInstance(modalEl);
-                if(instance) instance.hide();
-
-                renderProductsView();
-                showNotification("✅ EAN guardado correctamente", "success");
-
-            } catch (error) {
-                console.error(error);
-                showNotification("Error: " + error.message, "danger");
-            } finally {
-                showLoading(false);
-            }
-        }
-        
         // --- 7. MANEJO DE EVENTOS Y FUNCIONES AUXILIARES ---
         function initializeEventListeners() {
             DOM.authorizeButton.addEventListener('click', handleAuthClick);
@@ -3972,17 +3750,6 @@
             const target = e.target.closest('[data-action]');
             if (!target) return;
             const action = target.dataset.action;
-             // 1. EDICIÓN DE PRODUCTO (LÁPIZ)
-            if (action === 'edit-product') {
-                const productId = target.dataset.id;
-                console.log("✏️ Editando producto:", productId); // Esto debe salir en consola
-                if (typeof showEditProductModal === 'function') {
-                    showEditProductModal(productId);
-                } else {
-                    console.error("Error: La función showEditProductModal no existe o está fuera de alcance.");
-                }
-                return;
-            }
             // --- INICIO BLOQUE LUPA DE STOCK ---
             if (action === 'view-stock-locations') {
                 const productId = target.dataset.id;
@@ -3996,12 +3763,6 @@
                     const prodFound = fullData.productos.find(p => String(p[0]).trim().toUpperCase() === productId);
                     if(prodFound) productName = prodFound[1];
                 }
-           
-            // 2. GUARDAR CAMBIOS EAN
-            if (action === 'save-product-changes') {
-                saveProductChanges();
-                return;
-            }
 
                 // 2. Construir lista de ubicaciones
                 let locationsHtml = '';
@@ -5300,8 +5061,3 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
-
-
-
-
-
