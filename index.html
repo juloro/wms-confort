@@ -1525,16 +1525,21 @@
                 .map(item => item.product);
         }
         // =============================================================
-        // === MÓDULO DE ESCÁNER DE CÓDIGO DE BARRAS (CÁMARA REAL) ===
+        // === MÓDULO DE ESCÁNER (CÁMARA REAL) Y EDICIÓN ===
         // =============================================================
 
-        let html5QrCode = null; // Variable de control de la cámara
+        let html5QrCode = null; // Variable de control
 
-        // 1. ABRIR VENTANA DE EDICIÓN
+        // 1. FUNCIÓN PARA ABRIR LA VENTANA
         function showEditProductModal(productId) {
-            // Buscar producto en memoria (Array: [0]ID, [1]Nombre, [2]EAN)
+            console.log("Abriendo modal para:", productId);
+            
+            // Buscar producto en memoria
             const product = fullData.productos.find(p => String(p[0]).trim().toUpperCase() === productId);
-            if (!product) { alert("Producto no encontrado"); return; }
+            if (!product) { 
+                alert("Error: Producto no encontrado en la base de datos."); 
+                return; 
+            }
 
             const currentEAN = product[2] || ""; 
             const productName = product[1] || "";
@@ -1544,7 +1549,7 @@
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
                         <div class="modal-header bg-warning text-dark">
-                            <h5 class="modal-title"><span class="material-icons align-middle me-2">qr_code_scanner</span>Editar EAN</h5>
+                            <h5 class="modal-title"><span class="material-icons align-middle me-2">qr_code_scanner</span>Escanear EAN</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="window.stopBarcodeScanner()"></button>
                         </div>
                         <div class="modal-body">
@@ -1575,7 +1580,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="window.stopBarcodeScanner()">Cancelar</button>
-                            <button type="button" class="btn btn-success px-4 fw-bold" data-action="save-product-changes">GUARDAR CAMBIOS</button>
+                            <button type="button" class="btn btn-success px-4 fw-bold" data-action="save-product-changes">GUARDAR</button>
                         </div>
                     </div>
                 </div>
@@ -1583,14 +1588,16 @@
 
             createAndShowModal('editProductModal', modalHTML);
             
-            // Apagar cámara si cierran el modal haciendo clic fuera
+            // Seguridad: Apagar cámara si cierran el modal clickeando fuera
             const modalEl = document.getElementById('editProductModal');
-            modalEl.addEventListener('hidden.bs.modal', () => {
-                if(window.stopBarcodeScanner) window.stopBarcodeScanner();
-            });
+            if(modalEl) {
+                modalEl.addEventListener('hidden.bs.modal', () => {
+                    if(window.stopBarcodeScanner) window.stopBarcodeScanner();
+                });
+            }
         }
 
-        // 2. INICIAR CÁMARA (GLOBAL)
+        // 2. ACTIVAR CÁMARA (GLOBAL)
         window.startBarcodeScanner = function() {
             const readerDiv = document.getElementById('reader');
             const btnControl = document.getElementById('cameraControl');
@@ -1598,34 +1605,40 @@
             if(readerDiv) readerDiv.style.display = 'block';
             if(btnControl) btnControl.style.display = 'none';
 
-            // Usamos la librería global Html5Qrcode
             if (typeof Html5Qrcode === 'undefined') {
-                alert("Error: La librería del escáner no se cargó correctamente. Revisa el Paso 1.");
+                alert("Error: Librería Html5Qrcode no cargada. Revisa el Paso 1.");
                 return;
             }
 
-            html5QrCode = new Html5Qrcode("reader");
+            // Si ya existe una instancia, la limpiamos primero
+            if (html5QrCode) { 
+                try { html5QrCode.clear(); } catch(e){}
+            }
 
+            html5QrCode = new Html5Qrcode("reader");
             const config = { fps: 10, qrbox: { width: 250, height: 150 } }; 
             
             html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
-                // ÉXITO AL LEER
-                console.log(`Código leído: ${decodedText}`);
+                // ÉXITO
+                console.log(`Código: ${decodedText}`);
                 const input = document.getElementById('editProdEAN');
                 if(input) {
                     input.value = decodedText;
-                    // Efecto visual (parpadeo verde)
-                    input.style.backgroundColor = '#d4edda';
+                    // Efecto verde
+                    input.style.backgroundColor = '#d1e7dd';
                     setTimeout(() => input.style.backgroundColor = '', 500);
                 }
-                window.stopBarcodeScanner(); // Apagar cámara automáticamente tras leer
+                // Beep (opcional)
+                // const audio = new Audio('ruta/al/beep.mp3'); audio.play().catch(e=>{});
                 
-            }, (errorMessage) => {
-                // Error de lectura (normal mientras busca), no hacemos nada
+                window.stopBarcodeScanner(); // Apagar al leer
+                
+            }, (error) => {
+                // Escaneando... (no hacer nada)
             })
             .catch(err => {
                 console.error(err);
-                alert("No se pudo iniciar la cámara. Verifica permisos HTTPS.");
+                alert("No se pudo iniciar la cámara. Verifica permisos y HTTPS.");
                 window.stopBarcodeScanner();
             });
         };
@@ -1636,16 +1649,15 @@
                 html5QrCode.stop().then(() => {
                     html5QrCode.clear();
                     html5QrCode = null;
-                }).catch(err => console.log("Cámara ya detenida"));
+                }).catch(err => console.log("Cámara ya estaba detenida"));
             }
-            // Restaurar interfaz
             const readerDiv = document.getElementById('reader');
             const btnControl = document.getElementById('cameraControl');
             if(readerDiv) readerDiv.style.display = 'none';
             if(btnControl) btnControl.style.display = 'block';
         };
 
-        // 4. GUARDAR CAMBIOS EN EXCEL
+        // 4. GUARDAR CAMBIOS
         async function saveProductChanges() {
             const productId = document.getElementById('editProdId').value;
             const newEAN = document.getElementById('editProdEAN').value.trim();
@@ -1654,11 +1666,11 @@
             showLoading(true, "Guardando EAN...");
 
             try {
-                // Buscar índice del producto
+                // Buscar índice
                 const rowIndex = fullData.productos.findIndex(p => String(p[0]).trim().toUpperCase() === productId);
                 if (rowIndex === -1) throw new Error("Producto no encontrado.");
 
-                // Fila Excel = Index + 2 (Header + Base 1)
+                // Fila en Excel (Index + 2)
                 const sheetRow = rowIndex + 2; 
 
                 // Guardar en Columna C (EAN)
@@ -1669,17 +1681,17 @@
                     resource: { values: [[newEAN]] }
                 });
 
-                // Actualizar Memoria
+                // Actualizar memoria local
                 if(fullData.productos[rowIndex]) {
                     fullData.productos[rowIndex][2] = newEAN;
                 }
 
-                // Cerrar
+                // Cerrar modal
                 const modalEl = document.getElementById('editProductModal');
                 const instance = bootstrap.Modal.getInstance(modalEl);
                 if(instance) instance.hide();
 
-                renderProductsView(); // Refrescar tabla
+                renderProductsView();
                 showNotification("✅ EAN guardado correctamente", "success");
 
             } catch (error) {
@@ -5249,4 +5261,5 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
