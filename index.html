@@ -869,11 +869,10 @@
                                         <span class="material-icons align-middle">visibility</span>
                                     </button>
 
-                                    <button class="btn btn-sm btn-outline-warning" 
+                                   <button class="btn btn-sm btn-outline-warning" 
                                         type="button"
                                         data-action="edit-product" 
-                                        data-id="${sanitizeHTML(idLimpio)}"
-                                        title="Editar EAN">
+                                        data-id="${sanitizeHTML(idLimpio)}"  title="Editar EAN">
                                         <span class="material-icons align-middle">edit</span>
                                     </button>
                                 </div>
@@ -1532,15 +1531,32 @@
 
         // 1. FUNCIÓN PARA ABRIR LA VENTANA
         function showEditProductModal(productId) {
-            console.log("Abriendo modal para:", productId);
-            
-            // Buscar producto en memoria
-            const product = fullData.productos.find(p => String(p[0]).trim().toUpperCase() === productId);
-            if (!product) { 
-                alert("Error: Producto no encontrado en la base de datos."); 
-                return; 
+            console.log("--> Intentando editar. ID Recibido:", productId);
+
+            // 1. LIMPIEZA AGRESIVA DE DATOS
+            // Convertimos a texto, quitamos espacios y mayúsculas para asegurar coincidencia
+            const searchId = String(productId || "").trim().toUpperCase();
+
+            // 2. BÚSQUEDA ROBUSTA
+            const product = fullData.productos.find(p => {
+                // Hacemos la misma limpieza con el ID de la base de datos
+                const dbId = String(p[0] || "").trim().toUpperCase();
+                return dbId === searchId;
+            });
+
+            // 3. SI FALLA, DIAGNÓSTICO
+            if (!product) {
+                console.error("❌ ERROR: Producto no encontrado.");
+                console.log("ID Buscado (Limpio):", searchId);
+                console.log("Muestra de IDs en base de datos:", fullData.productos.slice(0, 3).map(p => p[0]));
+                
+                alert("Error: No se pudo encontrar el producto con ID: " + searchId + ".\n\nVerifica que el código del producto no tenga caracteres extraños.");
+                return;
             }
 
+            console.log("✅ Producto encontrado:", product[1]);
+
+            // --- AQUÍ EMPIEZA LA CREACIÓN DEL MODAL (Igual que antes) ---
             const currentEAN = product[2] || ""; 
             const productName = product[1] || "";
 
@@ -1549,14 +1565,14 @@
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow">
                         <div class="modal-header bg-warning text-dark">
-                            <h5 class="modal-title"><span class="material-icons align-middle me-2">qr_code_scanner</span>Escanear EAN</h5>
+                            <h5 class="modal-title"><span class="material-icons align-middle me-2">qr_code_scanner</span>Editar EAN</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="window.stopBarcodeScanner()"></button>
                         </div>
                         <div class="modal-body">
                             
                             <div class="mb-3 p-2 bg-light rounded border">
                                 <strong>${sanitizeHTML(productName)}</strong>
-                                <div class="small text-muted">ID: ${sanitizeHTML(productId)}</div>
+                                <div class="small text-muted">ID: ${sanitizeHTML(searchId)}</div>
                             </div>
 
                             <div id="reader" class="rounded mb-3 border border-dark bg-black" style="width: 100%; min-height: 250px; display:none;"></div>
@@ -1568,7 +1584,7 @@
                             </div>
 
                             <form id="editProductForm">
-                                <input type="hidden" id="editProdId" value="${sanitizeHTML(productId)}">
+                                <input type="hidden" id="editProdId" value="${sanitizeHTML(searchId)}">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Código EAN Detectado</label>
                                     <div class="input-group">
@@ -1588,7 +1604,6 @@
 
             createAndShowModal('editProductModal', modalHTML);
             
-            // Seguridad: Apagar cámara si cierran el modal clickeando fuera
             const modalEl = document.getElementById('editProductModal');
             if(modalEl) {
                 modalEl.addEventListener('hidden.bs.modal', () => {
@@ -1596,7 +1611,6 @@
                 });
             }
         }
-
         // 2. ACTIVAR CÁMARA (GLOBAL)
         window.startBarcodeScanner = function() {
             const readerDiv = document.getElementById('reader');
@@ -5266,6 +5280,7 @@ async function bulkPickTasks() {
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </body>
 </html>
+
 
 
 
